@@ -47,6 +47,8 @@ if (process.platform === 'win32') {
 
 // 禁用 GPU 沙箱，兼容无显卡/驱动异常的机器（不影响性能）
 app.commandLine.appendSwitch('disable-gpu-sandbox');
+// 音源解析是异步的，允许播放器在用户点击后完成异步加载并开始播放。
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 // GPU 崩溃自动降级：上次运行若 GPU 崩溃，本次禁用硬件加速
 const gpuCrashFlagPath = path.join(app.getPath('userData'), '.gpu-crash-flag');
@@ -163,7 +165,7 @@ app.on('ready', async () => {
     restoreWindowState();
 
     // 处理启动时传入的 deep link（Windows: 命令行参数）
-    const launchUrl = process.argv.find((arg) => arg.startsWith('musicfree:'));
+    const launchUrl = process.argv.find((arg) => arg.startsWith('anheplayer:'));
     if (launchUrl) {
         handleDeepLink(launchUrl);
     }
@@ -180,7 +182,7 @@ app.on('second-instance', (_event, argv) => {
         windowManager.showWindow('main');
     }
 
-    const url = argv.find((arg) => arg.startsWith('musicfree:'));
+    const url = argv.find((arg) => arg.startsWith('anheplayer:'));
     if (url) {
         handleDeepLink(url);
     }

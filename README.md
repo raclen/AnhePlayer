@@ -5,19 +5,19 @@
 
 <div align="center">
 
-# 🎵 MusicFree 桌面版
+# 🎵 安禾播放器 桌面版
 
-**插件化、定制化、无广告的免费音乐播放器**
+**内置洛雪播放解析、定制化、无广告的免费音乐播放器**
 
-[![GitHub Stars](https://img.shields.io/github/stars/maotoumao/MusicFreeDesktop?style=flat&logo=github&color=yellow)](https://github.com/maotoumao/MusicFreeDesktop/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/maotoumao/MusicFreeDesktop?style=flat&logo=github)](https://github.com/maotoumao/MusicFreeDesktop/network/members)
-[![GitCode Stars](https://gitcode.com/maotoumao/MusicFreeDesktop/star/badge.svg)](https://gitcode.com/maotoumao/MusicFreeDesktop)
-[![License](https://img.shields.io/github/license/maotoumao/MusicFreeDesktop?style=flat&color=blue)](./LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/maotoumao/MusicFreeDesktop/total?style=flat&color=green)](https://github.com/maotoumao/MusicFreeDesktop/releases)
-[![Issues](https://img.shields.io/github/issues/maotoumao/MusicFreeDesktop?style=flat)](https://github.com/maotoumao/MusicFreeDesktop/issues)
-[![Version](https://img.shields.io/github/package-json/v/maotoumao/MusicFreeDesktop?style=flat&color=orange)](./package.json)
+[![GitHub Stars](https://img.shields.io/github/stars/maotoumao/AnhePlayerDesktop?style=flat&logo=github&color=yellow)](https://github.com/maotoumao/AnhePlayerDesktop/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/maotoumao/AnhePlayerDesktop?style=flat&logo=github)](https://github.com/maotoumao/AnhePlayerDesktop/network/members)
+[![GitCode Stars](https://gitcode.com/maotoumao/AnhePlayerDesktop/star/badge.svg)](https://gitcode.com/maotoumao/AnhePlayerDesktop)
+[![License](https://img.shields.io/github/license/maotoumao/AnhePlayerDesktop?style=flat&color=blue)](./LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/maotoumao/AnhePlayerDesktop/total?style=flat&color=green)](https://github.com/maotoumao/AnhePlayerDesktop/releases)
+[![Issues](https://img.shields.io/github/issues/maotoumao/AnhePlayerDesktop?style=flat)](https://github.com/maotoumao/AnhePlayerDesktop/issues)
+[![Version](https://img.shields.io/github/package-json/v/maotoumao/AnhePlayerDesktop?style=flat&color=orange)](./package.json)
 
-<a href="https://trendshift.io/repositories/3961" target="_blank"><img src="https://trendshift.io/api/badge/repositories/3961" alt="maotoumao%2FMusicFreeDesktop | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/3961" target="_blank"><img src="https://trendshift.io/api/badge/repositories/3961" alt="maotoumao%2FAnhePlayerDesktop | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 **[English](./README_EN.md)** | 简体中文
 
@@ -52,45 +52,46 @@
 
 |     特性      | 说明                                                                                                                                                                     |
 | :-----------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **🔌 插件化** | 本软件仅仅是一个播放器，本身**不集成**任何平台的任何音源。所有搜索、播放、歌单导入等功能全部基于**插件**——只要互联网上有对应音源的插件，你都可以用本软件进行搜索和播放。 |
+| **🔌 洛雪音源** | 内置 `changqing_chajian.js` 洛雪插件，提供酷狗、QQ、网易云、酷我、咪咕等播放链接解析能力；可通过音源重定向让歌曲播放走洛雪解析。 |
 | **🎨 定制化** | 通过主题包自定义软件外观与背景，支持全新的语义化 CSS 变量系统和 iframe 背景。详见下方 [主题包](#-主题包) 章节。                                                          |
 | **🚫 无广告** | 基于 AGPL 3.0 协议开源，将会保持免费。                                                                                                                                   |
 |  **🔒 隐私**  | 所有数据存储在本地，不会上传你的个人信息。                                                                                                                               |
 
-**插件支持的功能**：搜索（音乐、专辑、作者、歌单）、播放、查看专辑、查看作者详情、导入单曲、导入歌单、获取歌词、排行榜、推荐歌单、歌曲评论、多音质切换（标准 / 高品 / 超品 / 无损）。
+**当前插件能力**：内置洛雪插件负责播放链接解析与多音质切换（低品 / 标准 / 高品 / 超品）。搜索、歌单、歌词等内容能力仍由应用原有功能或其他可用插件提供。
 
 ---
 
 ## 🔌 插件
 
-MusicFree 的核心能力由插件驱动。插件协议与 [安卓版](https://github.com/maotoumao/MusicFree) 保持兼容，桌面版在此基础上扩展了更多能力。
+本分支已切换为洛雪插件播放解析方案，不再使用 MusicFree 专用插件执行逻辑。根目录的 `changqing_chajian.js` 会在启动时作为内置洛雪插件加载，并在插件管理中生成多个可用于音源重定向的播放解析源。
 
-### 插件仓库
+### 内置洛雪源
 
-- **示例插件**：[MusicFreePlugins](https://github.com/maotoumao/MusicFreePlugins)
-- **开发文档**：[插件开发指南](https://musicfree.catcat.work/plugin/introduction.html)
+- `kg音乐`
+- `tx音乐`
+- `wy音乐`
+- `kw音乐`
+- `mg音乐`
+
+安装入口仅支持洛雪 `.js` 插件文件或以 `.js` 结尾的 http(s) 链接。
 
 ### 插件能力一览
 
 ```
-搜索 ─── 音乐 / 专辑 / 作者 / 歌单
-播放 ─── 多音质切换 · 音源重定向
-内容 ─── 专辑详情 · 作者作品 · 歌词 · 歌曲评论
-发现 ─── 排行榜 · 推荐歌单 · 歌单分类
-导入 ─── 单曲导入 · 歌单导入
+播放 ─── 洛雪 musicUrl 解析 · 多音质切换 · 音源重定向
+来源 ─── 酷狗 / QQ / 网易云 / 酷我 / 咪咕
+安装 ─── 本地 .js · 网络 .js
 ```
 
 ### 插件沙箱
 
-插件运行在安全沙箱中，可使用以下内置模块：
-
-`axios` · `cheerio` · `dayjs` · `big-integer` · `qs` · `he` · `crypto-js` · `webdav`
+洛雪插件运行在安全沙箱中，通过 `globalThis.lx` 注册 `request` 事件，并在 `inited` 事件中声明可用 source。应用会把每个 source 适配为一个 `getMediaSource` 解析插件。
 
 ---
 
 ## 🎨 主题包
 
-MusicFree 支持通过主题包自定义界面外观。内置两套主题：**浅色** 和 **纯黑（AMOLED）**。
+安禾播放器 支持通过主题包自定义界面外观。内置两套主题：**浅色** 和 **纯黑（AMOLED）**。
 
 ### 主题包结构
 
@@ -164,8 +165,8 @@ my-theme/
 
 ```bash
 # 克隆仓库
-git clone https://github.com/maotoumao/MusicFreeDesktop.git
-cd MusicFreeDesktop
+git clone https://github.com/maotoumao/AnhePlayerDesktop.git
+cd AnhePlayerDesktop
 
 # 安装依赖
 pnpm install

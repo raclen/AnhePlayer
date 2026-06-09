@@ -10,6 +10,7 @@ import { compositeKey, isSameMedia } from '@common/mediaKey';
 import { createIndexMap, type IIndexMap } from '@common/indexMap';
 import musicItemToSlim from '@common/musicItemToSlim';
 import MutationQueue from '@common/mutationQueue';
+import { INTERNAL_SLIM_KEY } from '@common/constant';
 import { syncKV } from '@renderer/common/kvStore';
 import { playQueueBridge } from '@infra/musicSheet/renderer';
 import { store, musicQueueAtom } from './store';
@@ -19,6 +20,7 @@ import { store, musicQueueAtom } from './store';
 class PlayQueue {
     /** 内存中的 slim 列表（用于 UI 渲染） */
     private slimList: IMusicItemSlim[] = [];
+    private rawItemCache = new Map<string, IMusic.IMusicItem>();
     private indexMap: IIndexMap = createIndexMap([]);
     private currentIndex = -1;
     private mutationQueue = new MutationQueue();
@@ -54,6 +56,10 @@ class PlayQueue {
         return this.currentIndex >= 0 ? (this.slimList[this.currentIndex] ?? null) : null;
     }
 
+    getRawItem(item: IMedia.IMediaBase): IMusic.IMusicItem | null {
+        return this.rawItemCache.get(this.keyOf(item)) ?? null;
+    }
+
     get isShuffleActive(): boolean {
         return this._isShuffleActive;
     }
@@ -83,6 +89,9 @@ class PlayQueue {
         items: (IMusic.IMusicItem | IMusicItemSlim)[],
         options?: { playIndex?: number; fromSheetId?: string },
     ): void {
+        this.rawItemCache.clear();
+        this.cacheRawItems(items);
+
         const slims = items.map(musicItemToSlim);
         this.slimList = slims;
         this.rebuildIndexMap();
@@ -115,6 +124,7 @@ class PlayQueue {
         }
 
         if (filteredSlims.length === 0) return;
+        this.cacheRawItems(filteredItems);
 
         // 去重：从队列中移除即将插入的歌曲
         const removeSet = new Set(filteredSlims.map((s) => this.keyOf(s)));
@@ -147,6 +157,8 @@ class PlayQueue {
 
     /** 追加到队尾 */
     append(items: (IMusic.IMusicItem | IMusicItemSlim)[]): void {
+        this.cacheRawItems(items);
+
         const slims = items.map(musicItemToSlim);
         this.slimList = [...this.slimList, ...slims];
         this.rebuildIndexMap();
@@ -165,6 +177,7 @@ class PlayQueue {
     remove(targets: IMedia.IMediaBase | IMedia.IMediaBase[]): void {
         const bases = Array.isArray(targets) ? targets : [targets];
         const removeSet = new Set(bases.map((b) => this.keyOf(b)));
+        removeSet.forEach((key) => this.rawItemCache.delete(key));
 
         const currentMusic = this.getCurrentMusic();
         this.slimList = this.slimList.filter((s) => !removeSet.has(this.keyOf(s)));
@@ -193,6 +206,7 @@ class PlayQueue {
     /** 清空 */
     clear(): void {
         this.slimList = [];
+        this.rawItemCache.clear();
         this.currentIndex = -1;
         this.shuffleKeys = [];
         this.shufflePosition = -1;
@@ -263,6 +277,16 @@ class PlayQueue {
 
     private keyOf(item: IMusicItemSlim | IMedia.IMediaBase): string {
         return compositeKey(item.platform, item.id);
+    }
+
+    private cacheRawItems(items: (IMusic.IMusicItem | IMusicItemSlim)[]): void {
+        for (const item of items) {
+            if (!item || (item as any)[INTERNAL_SLIM_KEY]) continue;
+            this.rawItemCache.set(this.keyOf(item), {
+                ...(item as IMusic.IMusicItem),
+                id: String(item.id),
+            });
+        }
     }
 
     private indexOfKey(key: string): number {

@@ -8,25 +8,7 @@
 
 import vm from 'vm';
 import crypto from 'crypto';
-import { createPluginRequire } from './pluginPolyfill';
-import type { PluginStorage } from './pluginStorage';
-
-/**
- * 沙箱环境配置选项。
- * 由 PluginManager 传入，用于注入运行时上下文（env、process 等）。
- */
-export interface ISandboxOptions {
-    /**
-     * 延迟获取用户变量的回调。
-     * 插件代码通过 env.getUserVariables() 调用，运行时动态读取。
-     */
-    getUserVariables?: () => Record<string, string>;
-
-    /**
-     * 延迟获取当前语言的回调。
-     */
-    getLang?: () => string;
-}
+import axios from 'axios';
 
 /** 计算代码的 SHA256 哈希 */
 export function computeHash(code: string): string {
@@ -68,70 +50,273 @@ function createProtectedGlobal(globals: Record<string, any>): Record<string, any
     });
 }
 
-/**
- * 在沙箱中执行插件代码，返回插件的导出对象。
- *
- * 插件代码格式约定：
- * - 代码最终将 module.exports 赋值为一个对象
- * - 该对象符合 IPlugin.IPluginDefine 接口
- * - 支持 module.exports.default 回退
- *
- * @param code 插件 JS 源代码
- * @param hash 插件代码哈希（由调用方预计算，避免重复计算）
- * @param pluginStorage 插件持久化存储实例
- * @param pluginPath 插件文件路径（用于设置 _path）
- * @param sandboxOptions 可选的沙箱环境配置
- * @returns 插件实例对象，或 null（执行失败时）
- */
-export function executePluginCode(
-    code: string,
-    hash: string,
-    pluginStorage: PluginStorage,
-    pluginPath: string,
-    sandboxOptions?: ISandboxOptions,
-): IPlugin.IPluginInstance | null {
-    // 构建 module 容器
-    const moduleExports: Record<string, any> = {};
-    const moduleObj = { exports: moduleExports, loaded: false };
+const LX_EVENT_NAMES = {
+    request: 'request',
+    inited: 'inited',
+    updateAlert: 'updateAlert',
+} as const;
 
-    // 插件初始化完成的 Promise
-    let loadResolveCallback: (() => void) | null = null;
-    const ensurePluginInitialized = new Promise<void>((resolve) => {
-        loadResolveCallback = resolve;
+const LX_QUALITY_MAP: Record<IMusic.IQualityKey, string> = {
+    low: '128k',
+    standard: '320k',
+    high: 'flac',
+    super: 'flac',
+};
+
+const LX_SEARCH_PAGE_SIZE = 30;
+
+type ILxRequestHandler = (payload: {
+    source: string;
+    action: string;
+    info: Record<string, any>;
+}) => unknown;
+
+interface ILxSourceDefine {
+    name?: string;
+    type?: string;
+    actions?: string[];
+    qualitys?: string[];
+}
+
+interface ILxInitedPayload {
+    sources?: Record<string, ILxSourceDefine>;
+}
+
+function readPluginHeader(code: string): Record<string, string> {
+    const match = code.match(/\/\*\*([\s\S]*?)\*\//);
+    if (!match) return {};
+
+    const meta: Record<string, string> = {};
+    for (const line of match[1].split(/\r?\n/)) {
+        const item = line.match(/^\s*\*\s*@([\w-]+)\s+(.+?)\s*$/);
+        if (item) {
+            meta[item[1]] = item[2];
+        }
+    }
+    return meta;
+}
+
+function extractLxMusicInfo(musicItem: IMusic.IMusicItemPartial): Record<string, any> {
+    const raw = (musicItem as any)?.raw ?? (musicItem as any)?.musicInfo ?? {};
+    return {
+        ...raw,
+        ...musicItem,
+    };
+}
+
+function normalizeLxMusicUrlResult(result: any): IPlugin.IMediaSourceResult | null {
+    if (!result) return null;
+    if (typeof result === 'string') {
+        return result ? { url: result } : null;
+    }
+    if (typeof result === 'object') {
+        const url = result.url ?? result.musicUrl ?? result.location;
+        if (!url) return null;
+        return {
+            url,
+            headers: result.headers,
+            userAgent: result.userAgent ?? result.headers?.['user-agent'],
+        };
+    }
+    return null;
+}
+
+function getLxQuality(sourceKey: string, quality: IMusic.IQualityKey): string {
+    if (sourceKey === 'kg') {
+        return '128k';
+    }
+    return LX_QUALITY_MAP[quality] ?? '320k';
+}
+
+function normalizeLxMusicUrl(url: string, sourceKey: string): string {
+    try {
+        const parsed = new URL(url);
+
+        if (sourceKey === 'tx' && parsed.pathname.includes('/kgqq/qq.php')) {
+            parsed.protocol = 'https:';
+            parsed.hostname = 'music.haitangw.cc';
+            parsed.port = '';
+            parsed.pathname = parsed.pathname.replace('/kgqq/qq.php', '/kgqq1/qq.php');
+            return parsed.toString();
+        }
+
+        if (sourceKey === 'kg' && parsed.pathname.includes('/kg.php')) {
+            parsed.searchParams.set('level', 'standard');
+            return parsed.toString();
+        }
+    } catch {
+        return url;
+    }
+
+    return url;
+}
+
+function normalizeArtistNames(value: unknown): string {
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => {
+                if (typeof item === 'string') return item;
+                return item?.name ?? item?.singername ?? item?.author_name ?? '';
+            })
+            .filter(Boolean)
+            .join(' / ');
+    }
+    return typeof value === 'string' && value ? value : '未知歌手';
+}
+
+async function searchTencentMusic(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'music'>> {
+    const resp = await axios.get('https://c.y.qq.com/soso/fcgi-bin/client_search_cp', {
+        params: {
+            format: 'json',
+            w: query,
+            p: page,
+            n: LX_SEARCH_PAGE_SIZE,
+        },
+        headers: {
+            'User-Agent': 'Mozilla/5.0',
+        },
+        timeout: 15000,
+        responseType: 'json',
     });
 
-    // 构建 env 对象（对应旧版 plugin.ts 中的 env）
-    const env = {
-        getUserVariables: sandboxOptions?.getUserVariables ?? (() => ({})),
-        os: process.platform,
-        appVersion: globalContext.appVersion,
-        lang: sandboxOptions?.getLang?.() ?? '',
+    const song = resp.data?.data?.song ?? {};
+    const list = Array.isArray(song.list) ? song.list : [];
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || page * LX_SEARCH_PAGE_SIZE >= (song.totalnum ?? 0),
+        data: list.map((item: any) => ({
+            id: String(item.songmid ?? item.songid ?? item.media_mid ?? item.strMediaMid),
+            platform,
+            title: item.songname ?? item.name ?? '',
+            artist: normalizeArtistNames(item.singer),
+            album: item.albumname ?? '',
+            artwork: item.albummid
+                ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg`
+                : undefined,
+            duration: item.interval,
+            raw: item,
+            songmid: item.songmid,
+            media_mid: item.media_mid,
+            strMediaMid: item.strMediaMid,
+        })),
+    };
+}
+
+async function searchKugouMusic(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'music'>> {
+    const resp = await axios.get('https://mobiles.kugou.com/api/v3/search/song', {
+        params: {
+            format: 'json',
+            keyword: query,
+            page,
+            pagesize: LX_SEARCH_PAGE_SIZE,
+            showtype: 1,
+        },
+        headers: {
+            'User-Agent': 'Mozilla/5.0',
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const data = resp.data?.data ?? {};
+    const list = Array.isArray(data.info) ? data.info : [];
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || page * LX_SEARCH_PAGE_SIZE >= (data.total ?? 0),
+        data: list.map((item: any) => ({
+            id: String(item.hash ?? item.audio_id),
+            platform,
+            title: item.songname ?? item.songname_original ?? '',
+            artist: normalizeArtistNames(item.singername),
+            album: item.album_name ?? '',
+            artwork: item.trans_param?.union_cover
+                ? String(item.trans_param.union_cover).replace('{size}', '300')
+                : undefined,
+            duration: item.duration,
+            raw: item,
+            hash: item.hash,
+        })),
+    };
+}
+
+/**
+ * 在沙箱中执行洛雪插件，返回由 initSource 事件声明的音源实例列表。
+ *
+ * 洛雪插件通过 globalThis.lx 注册 request 监听，
+ * 再通过 inited 事件发送 sources。这里把每个 source 适配成一个只负责
+ * getMediaSource 的安禾插件实例，供应用的音源重定向功能使用。
+ */
+export async function executeLxPluginCode(
+    code: string,
+    hash: string,
+    pluginPath: string,
+): Promise<IPlugin.IPluginInstance[] | null> {
+    if (!/globalThis\s*(?:\.\s*lx|\[\s*['"]lx['"]\s*\])/.test(code)) {
+        return null;
+    }
+
+    const meta = readPluginHeader(code);
+    const requestHandlers: ILxRequestHandler[] = [];
+    let initedPayload: ILxInitedPayload | null = null;
+    let updateUrl = meta.update_url;
+
+    const lx = {
+        EVENT_NAMES: LX_EVENT_NAMES,
+        on(eventName: string, handler: ILxRequestHandler) {
+            if (eventName === LX_EVENT_NAMES.request && typeof handler === 'function') {
+                requestHandlers.push(handler);
+            }
+        },
+        send(eventName: string, payload: any) {
+            if (eventName === LX_EVENT_NAMES.inited) {
+                initedPayload = payload;
+            } else if (eventName === LX_EVENT_NAMES.updateAlert && payload?.updateUrl) {
+                updateUrl = payload.updateUrl;
+            }
+        },
+        request(url: string, _options: Record<string, any>, callback: (err: any, resp: any) => void) {
+            if (url === updateUrl) {
+                callback(new Error('Update checks are handled by the app'), {
+                    statusCode: 500,
+                    body: null,
+                });
+                return;
+            }
+
+            axios
+                .request({
+                    url,
+                    method: _options?.method ?? 'GET',
+                    timeout: _options?.timeout ?? 15000,
+                    responseType: 'json',
+                    data: _options?.body,
+                    headers: _options?.headers,
+                })
+                .then((resp) => {
+                    callback(null, {
+                        statusCode: resp.status,
+                        headers: resp.headers,
+                        body: resp.data,
+                    });
+                })
+                .catch((err) => {
+                    callback(err, {
+                        statusCode: err?.response?.status,
+                        headers: err?.response?.headers,
+                        body: err?.response?.data,
+                    });
+                });
+        },
     };
 
-    // 构建 process 对象（对应旧版 plugin.ts 中的 _process）
-    const _process = {
-        platform: process.platform,
-        version: globalContext.appVersion,
-        env,
-        ensurePluginInitialized,
-    };
-
-    // 创建 require 函数
-    const _require = createPluginRequire(
-        (key: string) => pluginStorage.getItem(hash, key),
-        (key: string, value: string) => pluginStorage.setItem(hash, key, value),
-        (key: string) => pluginStorage.removeItem(hash, key),
-    );
-
-    // 创建沙箱全局对象
-    const sandboxGlobals = createProtectedGlobal({
-        // Node.js 模块系统
-        module: moduleObj,
-        exports: moduleExports,
-        require: _require,
-        __musicfree_require: _require,
-
-        // 安全的 console
+    const sandboxBaseGlobals: Record<string, any> = {
+        lx,
         console: {
             log: console.log.bind(console),
             warn: console.warn.bind(console),
@@ -140,25 +325,13 @@ export function executePluginCode(
             debug: console.debug.bind(console),
             trace: console.trace.bind(console),
         },
-
-        // 环境对象
-        env,
-        process: _process,
-
-        // 定时器
         setTimeout,
         clearTimeout,
         setInterval,
         clearInterval,
-
-        // Promise & async
         Promise,
-
-        // URL
         URL,
         URLSearchParams,
-
-        // 编码
         Buffer,
         TextEncoder,
         TextDecoder,
@@ -166,21 +339,13 @@ export function executePluginCode(
         decodeURIComponent,
         encodeURI,
         decodeURI,
-        escape,
-        unescape,
         btoa: (s: string) => Buffer.from(s).toString('base64'),
         atob: (s: string) => Buffer.from(s, 'base64').toString(),
-
-        // Fetch & Abort
+        fetch: globalThis.fetch,
         AbortController,
         AbortSignal,
-        fetch: globalThis.fetch,
         Blob,
-
-        // JSON
         JSON,
-
-        // 数学/基础类型
         Math,
         Number,
         String,
@@ -205,49 +370,83 @@ export function executePluginCode(
         undefined,
         NaN,
         Infinity,
-    });
+    };
+    sandboxBaseGlobals.globalThis = sandboxBaseGlobals;
+    const sandboxGlobals = createProtectedGlobal(sandboxBaseGlobals);
 
     try {
         const context = vm.createContext(sandboxGlobals);
-
-        // 编译并执行插件代码
         const script = new vm.Script(code, {
-            filename: `plugin-${pluginPath || 'anonymous'}.js`,
+            filename: `lx-plugin-${pluginPath || 'anonymous'}.js`,
         });
 
         script.runInContext(context, { timeout: 10000 });
 
-        // 标记加载完成
-        loadResolveCallback?.();
-        moduleObj.loaded = true;
+        // 洛雪插件常在 Promise.then 中发送 inited，等待一轮任务让初始化落地。
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
-        // 获取导出——支持 module.exports.default 回退
-        let pluginDefine: IPlugin.IPluginDefine;
-        if ((moduleObj.exports as any).default) {
-            pluginDefine = (moduleObj.exports as any).default as IPlugin.IPluginDefine;
-        } else {
-            pluginDefine = moduleObj.exports as IPlugin.IPluginDefine;
-        }
-
-        if (!pluginDefine || !pluginDefine.platform) {
-            console.error(`[PluginSandbox] Plugin at ${pluginPath} has no platform defined`);
+        if (!initedPayload?.sources || requestHandlers.length === 0) {
             return null;
         }
 
-        // 过滤 userVariables：只保留有 key 的项
-        if (Array.isArray(pluginDefine.userVariables)) {
-            pluginDefine.userVariables = pluginDefine.userVariables.filter((it: any) => it?.key);
+        const instances: IPlugin.IPluginInstance[] = [];
+        for (const [sourceKey, source] of Object.entries(initedPayload.sources)) {
+            if (source?.type && source.type !== 'music') continue;
+            if (source?.actions && !source.actions.includes('musicUrl')) continue;
+
+            const platform = source.name ?? `${meta.name ?? '洛雪音源'}-${sourceKey}`;
+            const instance: IPlugin.IPluginInstance = {
+                platform,
+                version: meta.version,
+                author: meta.author,
+                description: meta.description,
+                srcUrl: updateUrl,
+                defaultSearchType: 'music',
+                supportedSearchType:
+                    sourceKey === 'tx' || sourceKey === 'kg' ? ['music'] : [],
+                async getMediaSource(musicItem, quality) {
+                    const lxQuality = getLxQuality(sourceKey, quality);
+                    const payload = {
+                        source: sourceKey,
+                        action: 'musicUrl',
+                        info: {
+                            musicInfo: extractLxMusicInfo(musicItem),
+                            type: lxQuality,
+                        },
+                    };
+
+                    for (const handler of requestHandlers) {
+                        const result = await handler(payload);
+                        const normalized = normalizeLxMusicUrlResult(result);
+                        if (normalized?.url) {
+                            return {
+                                ...normalized,
+                                url: normalizeLxMusicUrl(normalized.url, sourceKey),
+                                quality,
+                            };
+                        }
+                    }
+                    return null;
+                },
+                _path: pluginPath,
+            };
+            if (sourceKey === 'tx') {
+                instance.search = async (query, page, type) => {
+                    if (type !== 'music') return { isEnd: true, data: [] } as any;
+                    return searchTencentMusic(query, page, platform) as any;
+                };
+            } else if (sourceKey === 'kg') {
+                instance.search = async (query, page, type) => {
+                    if (type !== 'music') return { isEnd: true, data: [] } as any;
+                    return searchKugouMusic(query, page, platform) as any;
+                };
+            }
+            instances.push(instance);
         }
 
-        // 构造 IPluginInstance
-        const instance: IPlugin.IPluginInstance = {
-            ...pluginDefine,
-            _path: pluginPath,
-        };
-
-        return instance;
+        return instances.length > 0 ? instances : null;
     } catch (err) {
-        console.error(`[PluginSandbox] Failed to execute plugin at ${pluginPath}:`, err);
+        console.error(`[PluginSandbox] Failed to execute lx plugin at ${pluginPath}:`, err);
         return null;
     }
 }

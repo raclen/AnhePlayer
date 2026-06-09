@@ -1,7 +1,7 @@
 {
-    "name": "musicfree-desktop",
-    "productName": "MusicFree",
-    "version": "1.0.0",
+    "name": "anhe-player",
+    "productName": "安禾播放器",
+    "version": "1.0.1",
     "description": "一个插件化的音乐播放器",
     "main": ".webpack/main",
     "private": true,
@@ -21,17 +21,17 @@
     "keywords": [
         "music",
         "player",
-        "MusicFree",
+        "安禾播放器",
         "electron",
         "plugin"
     ],
     "homepage": "https://musicfree.catcat.work",
     "repository": {
         "type": "git",
-        "url": "https://github.com/maotoumao/MusicFreeDesktop.git"
+        "url": "https://github.com/maotoumao/AnhePlayerDesktop.git"
     },
     "bugs": {
-        "url": "https://github.com/maotoumao/MusicFreeDesktop/issues"
+        "url": "https://github.com/maotoumao/AnhePlayerDesktop/issues"
     },
     "author": {
         "name": "maotoumao",

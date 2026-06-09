@@ -64,8 +64,8 @@ export default function PluginInstallModal({ close }: PluginInstallModalProps) {
                 buttonLabel: t('plugin.install'),
                 filters: [
                     {
-                        extensions: ['js', 'json'],
-                        name: t('plugin.musicfree_plugin'),
+                        extensions: ['js'],
+                        name: t('plugin.anhe_player_plugin'),
                     },
                 ],
                 properties: ['openFile'],
@@ -115,7 +115,6 @@ export default function PluginInstallModal({ close }: PluginInstallModalProps) {
                 'text/javascript',
                 'application/javascript',
                 'application/x-javascript',
-                'application/json',
             ];
             const pluginFile = files.find((f) => validMimeTypes.includes(f.type));
             if (!pluginFile) {
@@ -135,7 +134,7 @@ export default function PluginInstallModal({ close }: PluginInstallModalProps) {
         const trimmed = url.trim();
         try {
             const { pathname } = new URL(trimmed);
-            if (!pathname.endsWith('.js') && !pathname.endsWith('.json')) {
+            if (!pathname.endsWith('.js')) {
                 showToast(t('plugin.error_hint_plugin_should_end_with_js_or_json'), {
                     type: 'warn',
                 });

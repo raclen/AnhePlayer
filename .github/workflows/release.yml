@@ -91,7 +91,7 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   gh release create "${{ steps.meta.outputs.tag }}" \
-                    --title "MusicFree ${{ steps.meta.outputs.version }}" \
+                    --title "AnhePlayer ${{ steps.meta.outputs.version }}" \
                     --notes-file release-notes.md \
                     --draft \
                     ${{ steps.meta.outputs.prerelease == 'true' && '--prerelease' || '' }} \

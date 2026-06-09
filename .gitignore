@@ -90,4 +90,10 @@ typings/
 
 # Electron-Forge
 out/
+dist/
+dist-deb/
+*.deb
+*.rpm
+*.AppImage
 nvm-setup.exe
+changqing_chajian.js

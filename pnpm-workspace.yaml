@@ -1,0 +1,10 @@
+packages:
+  - .
+
+allowBuilds:
+  '@parcel/watcher': true
+  better-sqlite3: true
+  electron: true
+  sharp: true
+  unrs-resolver: true
+nodeLinker: hoisted

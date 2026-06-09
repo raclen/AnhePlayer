@@ -1,7 +1,9 @@
 {
-  "version": "0.0.1",
+  "version": "1.0.1",
   "changeLog": [
-    "优化下载功能，支持配置下载名称，部分源，增加专辑封面和歌词"
+    "移除内置测试音源，支持安装洛雪音源插件",
+    "修复洛雪插件搜索结果播放失败问题",
+    "优化 Linux 打包与 GitHub Actions 构建"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"

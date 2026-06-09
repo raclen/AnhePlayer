@@ -64,7 +64,7 @@ export const syncKV = {
 // asyncKV
 // ═══════════════════════════════════════════════════════
 
-const DB_NAME = 'MusicFreeKV';
+const DB_NAME = 'AnhePlayerKV';
 const STORE_NAME = 'kv';
 
 let dbPromise: Promise<IDBDatabase> | null = null;

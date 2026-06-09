@@ -11,7 +11,7 @@ export const THEMEPACK_BLURHASH_NODE_ID = 'themepack-blurhash';
 export const THEMEPACK_IFRAME_NODE_ID = 'themepack-iframe';
 
 /** 主题包安装目录名（位于 userData 下） */
-export const THEMEPACK_DIR_NAME = 'musicfree-themepacks';
+export const THEMEPACK_DIR_NAME = 'anhe-player-themepacks';
 
 /** 内置主题包目录名（位于 res 下） */
 export const BUILTIN_THEME_DIR_NAME = 'builtin-themes';

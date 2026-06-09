@@ -8,13 +8,13 @@ import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager
 import wechatQR from '@assets/imgs/wechat_channel1.png';
 import { Github, MonitorPlay, BookHeart, Twitter, type LucideIcon } from 'lucide-react';
 
-const GITHUB_REPO = 'https://github.com/maotoumao/MusicFreeDesktop';
+const GITHUB_REPO = 'https://github.com/maotoumao/AnhePlayerDesktop';
 const GITHUB_AUTHOR = 'https://github.com/maotoumao';
 const BILIBILI_AUTHOR = 'https://space.bilibili.com/12866223';
 const X_AUTHOR = 'https://twitter.com/upupfun';
 const XIAOHONGSHU_AUTHOR =
     'https://www.xiaohongshu.com/user/profile/5ce6085200000000050213a6?xhsshare=CopyLink&appuid=5ce6085200000000050213a6&apptime=1714394544';
-const GITHUB_ISSUES = 'https://github.com/maotoumao/MusicFreeDesktop/issues';
+const GITHUB_ISSUES = 'https://github.com/maotoumao/AnhePlayerDesktop/issues';
 const OFFICIAL_SITE = 'https://musicfree.catcat.work';
 const LICENSE_URL = `${GITHUB_REPO}/blob/master/LICENSE`;
 
@@ -95,7 +95,7 @@ export function AboutSection() {
                             text="musicfree.catcat.work"
                             url={OFFICIAL_SITE}
                         />
-                        <LinkRow label="GitHub" text="MusicFreeDesktop" url={GITHUB_REPO} />
+                        <LinkRow label="GitHub" text="AnhePlayerDesktop" url={GITHUB_REPO} />
                         <LinkRow
                             label={t('settings.about.issues_link')}
                             text="GitHub Issues"

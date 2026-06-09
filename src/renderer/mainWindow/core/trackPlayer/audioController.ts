@@ -120,15 +120,20 @@ class WebAudioController extends EventEmitter<IAudioControllerEvents> implements
             return;
         }
 
-        // 带 header 的非 HLS：通过代理服务器
-        if (headers) {
-            const proxyUrl = requestForwarder.buildProxyUrl(url, headers);
+        // 远程非 HLS：通过代理服务器播放，代理负责附加 headers 和跟随重定向。
+        if (requestForwarder.isProxyRequired(url)) {
+            const proxyUrl = requestForwarder.buildProxyUrl(url, headers ?? undefined);
             if (proxyUrl !== url) {
-                // 代理可用，直接设置代理 URL
                 this.audio.src = proxyUrl;
                 return;
             }
-            // 代理不可用，降级到 fetch
+
+            if (!headers) {
+                this.audio.src = url;
+                return;
+            }
+
+            // 代理不可用且需要 headers 时，降级到 fetch。
             fetch(url, { method: 'GET', headers })
                 .then((res) => res.blob())
                 .then((blob) => {

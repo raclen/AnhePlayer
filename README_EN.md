@@ -1,18 +1,18 @@
 <div align="center">
 
-# 🎵 MusicFree Desktop
+# 🎵 安禾播放器
 
-**A plugin-based, customizable, ad-free music player**
+**A customizable, ad-free music player with built-in LX Music source parsing**
 
-[![GitHub Stars](https://img.shields.io/github/stars/maotoumao/MusicFreeDesktop?style=flat&logo=github&color=yellow)](https://github.com/maotoumao/MusicFreeDesktop/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/maotoumao/MusicFreeDesktop?style=flat&logo=github)](https://github.com/maotoumao/MusicFreeDesktop/network/members)
-[![GitCode Stars](https://gitcode.com/maotoumao/MusicFreeDesktop/star/badge.svg)](https://gitcode.com/maotoumao/MusicFreeDesktop)
-[![License](https://img.shields.io/github/license/maotoumao/MusicFreeDesktop?style=flat&color=blue)](./LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/maotoumao/MusicFreeDesktop/total?style=flat&color=green)](https://github.com/maotoumao/MusicFreeDesktop/releases)
-[![Issues](https://img.shields.io/github/issues/maotoumao/MusicFreeDesktop?style=flat)](https://github.com/maotoumao/MusicFreeDesktop/issues)
-[![Version](https://img.shields.io/github/package-json/v/maotoumao/MusicFreeDesktop?style=flat&color=orange)](./package.json)
+[![GitHub Stars](https://img.shields.io/github/stars/maotoumao/AnhePlayerDesktop?style=flat&logo=github&color=yellow)](https://github.com/maotoumao/AnhePlayerDesktop/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/maotoumao/AnhePlayerDesktop?style=flat&logo=github)](https://github.com/maotoumao/AnhePlayerDesktop/network/members)
+[![GitCode Stars](https://gitcode.com/maotoumao/AnhePlayerDesktop/star/badge.svg)](https://gitcode.com/maotoumao/AnhePlayerDesktop)
+[![License](https://img.shields.io/github/license/maotoumao/AnhePlayerDesktop?style=flat&color=blue)](./LICENSE)
+[![Downloads](https://img.shields.io/github/downloads/maotoumao/AnhePlayerDesktop/total?style=flat&color=green)](https://github.com/maotoumao/AnhePlayerDesktop/releases)
+[![Issues](https://img.shields.io/github/issues/maotoumao/AnhePlayerDesktop?style=flat)](https://github.com/maotoumao/AnhePlayerDesktop/issues)
+[![Version](https://img.shields.io/github/package-json/v/maotoumao/AnhePlayerDesktop?style=flat&color=orange)](./package.json)
 
-<a href="https://trendshift.io/repositories/3961" target="_blank"><img src="https://trendshift.io/api/badge/repositories/3961" alt="maotoumao%2FMusicFreeDesktop | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/3961" target="_blank"><img src="https://trendshift.io/api/badge/repositories/3961" alt="maotoumao%2FAnhePlayerDesktop | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
 English | **[简体中文](./README.md)**
 
@@ -45,45 +45,46 @@ A plugin-based, customizable, ad-free music player for **Windows**, **macOS**, a
 
 |       Feature       | Description                                                                                                                                                                                                                                                       |
 | :-----------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **🔌 Plugin-based** | MusicFree is purely a player — it **does not bundle** any music sources. All search, playback, and playlist import features are powered by **plugins**. As long as a plugin exists for a music source on the internet, you can search and play it with MusicFree. |
+| **🔌 LX Music source** | Bundles the `changqing_chajian.js` LX Music plugin for playback URL parsing across Kugou, QQ Music, NetEase Cloud Music, Kuwo, and Migu. Playback can be routed through these sources with source redirect. |
 | **🎨 Customizable** | Customize the app's appearance and background via theme packs, with a brand-new semantic CSS variable system and iframe backgrounds. See [Theme Packs](#-theme-packs) below.                                                                                      |
 |   **🚫 Ad-free**    | Open-sourced under AGPL 3.0, and will remain free.                                                                                                                                                                                                                |
 |   **🔒 Privacy**    | All data is stored locally. Your personal information is never uploaded.                                                                                                                                                                                          |
 
-**Plugin-supported features**: Search (music / albums / artists / playlists), playback, album details, artist details, single track import, playlist import, lyrics, top lists, recommended playlists, song comments, multi-quality switching (standard / high / super / lossless).
+**Current plugin capabilities**: the built-in LX Music plugin handles playback URL parsing and multi-quality switching (low / standard / high / super). Search, playlists, lyrics, and other content features continue to come from the app's existing capabilities or other available plugins.
 
 ---
 
 ## 🔌 Plugins
 
-MusicFree's core capabilities are driven by plugins. The plugin protocol is compatible with the [Android version](https://github.com/maotoumao/MusicFree), with additional features available on desktop.
+This branch uses LX Music plugins for playback parsing and no longer runs the old MusicFree-specific plugin execution path. The root-level `changqing_chajian.js` file is loaded as a built-in LX Music plugin on startup, and each declared source appears as a playback parser that can be selected for source redirect.
 
-### Plugin Repository
+### Built-In LX Sources
 
-- **Example plugins**: [MusicFreePlugins](https://github.com/maotoumao/MusicFreePlugins)
-- **Documentation**: [Plugin Development Guide](https://musicfree.catcat.work/plugin/introduction.html)
+- `kg音乐`
+- `tx音乐`
+- `wy音乐`
+- `kw音乐`
+- `mg音乐`
+
+The install dialog now accepts LX Music `.js` plugin files or http(s) links ending with `.js`.
 
 ### Plugin Capabilities
 
 ```
-Search ─── Music / Albums / Artists / Playlists
-Play   ─── Multi-quality switching · Source redirect
-Content ── Album details · Artist works · Lyrics · Comments
-Discover ─ Top lists · Recommended playlists · Playlist categories
-Import ─── Single track import · Playlist import
+Play   ─── LX musicUrl parsing · Multi-quality switching · Source redirect
+Sources ─ Kugou / QQ Music / NetEase Cloud Music / Kuwo / Migu
+Install ─ Local .js · Remote .js
 ```
 
 ### Plugin Sandbox
 
-Plugins run in a secure sandbox with access to the following built-in modules:
-
-`axios` · `cheerio` · `dayjs` · `big-integer` · `qs` · `he` · `crypto-js` · `webdav`
+LX Music plugins run in a secure sandbox through `globalThis.lx`: they register `request` handlers and declare available sources through the `inited` event. The app adapts each source into a `getMediaSource` playback parser.
 
 ---
 
 ## 🎨 Theme Packs
 
-MusicFree supports full UI customization through theme packs. Two themes are built in: **Light** and **Pure Black (AMOLED)**.
+安禾播放器 supports full UI customization through theme packs. Two themes are built in: **Light** and **Pure Black (AMOLED)**.
 
 ### Theme Pack Structure
 
@@ -157,8 +158,8 @@ Example repository: https://github.com/maotoumao/MusicFreeThemePacks
 
 ```bash
 # Clone the repository
-git clone https://github.com/maotoumao/MusicFreeDesktop.git
-cd MusicFreeDesktop
+git clone https://github.com/maotoumao/AnhePlayerDesktop.git
+cd AnhePlayerDesktop
 
 # Install dependencies
 pnpm install

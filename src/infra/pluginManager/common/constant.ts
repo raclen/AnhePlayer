@@ -45,10 +45,10 @@ export const IPC_GET_MEDIA_SOURCE = '@infra/plugin-manager/get-media-source';
 // ─── 路径常量 ───
 
 /** 插件 JS 文件存储目录名 */
-export const PLUGIN_DIR_NAME = 'musicfree-plugins';
+export const PLUGIN_DIR_NAME = 'anhe-player-plugins';
 
 /** 插件持久化存储目录名 */
-export const PLUGIN_STORAGE_DIR_NAME = 'musicfree-plugin-storage';
+export const PLUGIN_STORAGE_DIR_NAME = 'anhe-player-plugin-storage';
 
 /** 插件持久化存储文件名 */
 export const PLUGIN_STORAGE_FILE_NAME = 'chunk.json';

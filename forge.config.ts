@@ -17,14 +17,14 @@ const config: ForgeConfig = {
         asar: {
             unpack: '**/node_modules/{sharp,@img}/**/*',
         },
-        appBundleId: 'fun.upup.musicfree',
+        appBundleId: 'cn.anhe.player',
         icon: path.resolve(__dirname, 'res/logo'),
-        executableName: 'MusicFree',
+        executableName: 'anhe-player',
         extraResource: [path.resolve(__dirname, 'res')],
         protocols: [
             {
-                name: 'MusicFree',
-                schemes: ['musicfree'],
+                name: '安禾播放器',
+                schemes: ['anheplayer'],
             },
         ],
     },
@@ -35,13 +35,13 @@ const config: ForgeConfig = {
         }),
         new MakerDeb({
             options: {
-                bin: 'MusicFree',
-                mimeType: ['x-scheme-handler/musicfree'],
+                bin: 'anhe-player',
+                mimeType: ['x-scheme-handler/anheplayer'],
             },
         }),
         new MakerRpm({
             options: {
-                bin: 'MusicFree',
+                bin: 'anhe-player',
             },
         }),
     ],

@@ -1,9 +1,9 @@
 /**
  * Deep Link 处理模块
  *
- * 处理 musicfree:// 协议链接，目前支持：
- * - musicfree://install/<pluginUrl> — 安装插件（支持逗号分隔批量安装）
- * - musicfree://install?plugin=<pluginUrl> — 同上（query 参数形式）
+ * 处理 anheplayer:// 协议链接，目前支持：
+ * - anheplayer://install/<pluginUrl> — 安装插件（支持逗号分隔批量安装）
+ * - anheplayer://install?plugin=<pluginUrl> — 同上（query 参数形式）
  */
 
 import pluginManager from '@infra/pluginManager/main';
@@ -18,15 +18,15 @@ export function handleDeepLink(url: string): void {
 
     try {
         const urlObj = new URL(url);
-        if (urlObj.protocol === 'musicfree:') {
-            handleMusicFreeScheme(urlObj);
+        if (urlObj.protocol === 'anheplayer:') {
+            handleAnhePlayerScheme(urlObj);
         }
     } catch {
         logger.warn('[DeepLink] Invalid URL:', url);
     }
 }
 
-async function handleMusicFreeScheme(url: URL): Promise<void> {
+async function handleAnhePlayerScheme(url: URL): Promise<void> {
     if (url.hostname === 'install') {
         await handleInstall(url);
     }

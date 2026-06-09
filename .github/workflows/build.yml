@@ -44,23 +44,24 @@ jobs:
                   variables: /DMyAppVersion=${{ env.VERSION }} /DMyAppId=${{ secrets.MYAPPID }}
             - name: Rename setup file
               run: |
-                  Rename-Item -Path "./out/MusicFreeSetup.exe" -NewName "MusicFree-${{ env.VERSION }}-win32-x64-setup.exe"
+                  Rename-Item -Path "./out/AnhePlayerSetup.exe" -NewName "AnhePlayer-${{ env.VERSION }}-win32-x64-setup.exe"
             - name: Generate portable
               run: |
-                  New-Item -ItemType Directory -Path "./out/MusicFree-win32-x64/portable" -Force
-                  New-Item -ItemType File -Path "./out/MusicFree-win32-x64/portable/.portable" -Force
+                  $packageDir = "./out/安禾播放器-win32-x64"
+                  New-Item -ItemType Directory -Path "$packageDir/portable" -Force
+                  New-Item -ItemType File -Path "$packageDir/portable/.portable" -Force
             - name: Archive portable
               run: |
-                  Compress-Archive -Path "./out/MusicFree-win32-x64/*" -DestinationPath "./out/MusicFree-${{ env.VERSION }}-win32-x64-portable.zip"
+                  Compress-Archive -Path "./out/安禾播放器-win32-x64/*" -DestinationPath "./out/AnhePlayer-${{ env.VERSION }}-win32-x64-portable.zip"
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-win32-x64-setup
-                  path: ./out/MusicFree-${{ env.VERSION }}-win32-x64-setup.exe
+                  name: AnhePlayer-${{ env.VERSION }}-win32-x64-setup
+                  path: ./out/AnhePlayer-${{ env.VERSION }}-win32-x64-setup.exe
                   retention-days: 30
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-win32-x64-portable
-                  path: ./out/MusicFree-${{ env.VERSION }}-win32-x64-portable.zip
+                  name: AnhePlayer-${{ env.VERSION }}-win32-x64-portable
+                  path: ./out/AnhePlayer-${{ env.VERSION }}-win32-x64-portable.zip
                   retention-days: 30
 
     build-windows-legacy:
@@ -95,23 +96,24 @@ jobs:
                   variables: /DMyAppVersion=${{ env.VERSION }} /DMyAppId=${{ secrets.MYAPPID }}
             - name: Rename setup file
               run: |
-                  Rename-Item -Path "./out/MusicFreeSetup.exe" -NewName "MusicFree-${{ env.VERSION }}-win32-x64-legacy-setup.exe"
+                  Rename-Item -Path "./out/AnhePlayerSetup.exe" -NewName "AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-setup.exe"
             - name: Generate portable
               run: |
-                  New-Item -ItemType Directory -Path "./out/MusicFree-win32-x64/portable" -Force
-                  New-Item -ItemType File -Path "./out/MusicFree-win32-x64/portable/.portable" -Force
+                  $packageDir = "./out/安禾播放器-win32-x64"
+                  New-Item -ItemType Directory -Path "$packageDir/portable" -Force
+                  New-Item -ItemType File -Path "$packageDir/portable/.portable" -Force
             - name: Archive portable
               run: |
-                  Compress-Archive -Path "./out/MusicFree-win32-x64/*" -DestinationPath "./out/MusicFree-${{ env.VERSION }}-win32-x64-legacy-portable.zip"
+                  Compress-Archive -Path "./out/安禾播放器-win32-x64/*" -DestinationPath "./out/AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-portable.zip"
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-win32-x64-legacy-setup
-                  path: ./out/MusicFree-${{ env.VERSION }}-win32-x64-legacy-setup.exe
+                  name: AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-setup
+                  path: ./out/AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-setup.exe
                   retention-days: 30
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-win32-x64-legacy-portable
-                  path: ./out/MusicFree-${{ env.VERSION }}-win32-x64-legacy-portable.zip
+                  name: AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-portable
+                  path: ./out/AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-portable.zip
                   retention-days: 30
 
     build-macos-x64:
@@ -134,11 +136,17 @@ jobs:
                   echo "VERSION=$VERSION" >> $GITHUB_ENV
             - run: pnpm run make
             - name: Rename DMG
-              run: mv "./out/make/MusicFree-${{ env.VERSION }}-x64.dmg" "./out/make/MusicFree-${{ env.VERSION }}-darwin-x64.dmg"
+              run: |
+                  DMG_FILE=$(find ./out/make -maxdepth 1 -name "*.dmg" | head -1)
+                  if [ -z "$DMG_FILE" ]; then
+                    echo "::error::DMG file not found"
+                    exit 1
+                  fi
+                  mv "$DMG_FILE" "./out/make/AnhePlayer-${{ env.VERSION }}-darwin-x64.dmg"
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-darwin-x64
-                  path: ./out/make/MusicFree-${{ env.VERSION }}-darwin-x64.dmg
+                  name: AnhePlayer-${{ env.VERSION }}-darwin-x64
+                  path: ./out/make/AnhePlayer-${{ env.VERSION }}-darwin-x64.dmg
                   retention-days: 30
 
     build-macos-arm64:
@@ -161,11 +169,17 @@ jobs:
                   echo "VERSION=$VERSION" >> $GITHUB_ENV
             - run: pnpm run make -- --arch=arm64
             - name: Rename DMG
-              run: mv "./out/make/MusicFree-${{ env.VERSION }}-arm64.dmg" "./out/make/MusicFree-${{ env.VERSION }}-darwin-arm64.dmg"
+              run: |
+                  DMG_FILE=$(find ./out/make -maxdepth 1 -name "*.dmg" | head -1)
+                  if [ -z "$DMG_FILE" ]; then
+                    echo "::error::DMG file not found"
+                    exit 1
+                  fi
+                  mv "$DMG_FILE" "./out/make/AnhePlayer-${{ env.VERSION }}-darwin-arm64.dmg"
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-darwin-arm64
-                  path: ./out/make/MusicFree-${{ env.VERSION }}-darwin-arm64.dmg
+                  name: AnhePlayer-${{ env.VERSION }}-darwin-arm64
+                  path: ./out/make/AnhePlayer-${{ env.VERSION }}-darwin-arm64.dmg
                   retention-days: 30
 
     build-linux:
@@ -190,22 +204,26 @@ jobs:
             - name: Rename DEB
               run: |
                   DEB_FILE=$(find ./out/make/deb/x64/ -name "*.deb" | head -1)
-                  if [ -n "$DEB_FILE" ]; then
-                    mv "$DEB_FILE" "./out/make/deb/x64/MusicFree-${{ env.VERSION }}-linux-amd64.deb"
+                  if [ -z "$DEB_FILE" ]; then
+                    echo "::error::DEB file not found"
+                    exit 1
                   fi
+                  mv "$DEB_FILE" "./out/make/deb/x64/AnhePlayer-${{ env.VERSION }}-linux-amd64.deb"
             - name: Rename RPM
               run: |
                   RPM_FILE=$(find ./out/make/rpm/x64/ -name "*.rpm" | head -1)
-                  if [ -n "$RPM_FILE" ]; then
-                    mv "$RPM_FILE" "./out/make/rpm/x64/MusicFree-${{ env.VERSION }}-linux-amd64.rpm"
+                  if [ -z "$RPM_FILE" ]; then
+                    echo "::error::RPM file not found"
+                    exit 1
                   fi
+                  mv "$RPM_FILE" "./out/make/rpm/x64/AnhePlayer-${{ env.VERSION }}-linux-amd64.rpm"
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-linux-amd64-deb
-                  path: ./out/make/deb/x64/MusicFree-${{ env.VERSION }}-linux-amd64.deb
+                  name: AnhePlayer-${{ env.VERSION }}-linux-amd64-deb
+                  path: ./out/make/deb/x64/AnhePlayer-${{ env.VERSION }}-linux-amd64.deb
                   retention-days: 30
             - uses: actions/upload-artifact@v6
               with:
-                  name: MusicFree-${{ env.VERSION }}-linux-amd64-rpm
-                  path: ./out/make/rpm/x64/MusicFree-${{ env.VERSION }}-linux-amd64.rpm
+                  name: AnhePlayer-${{ env.VERSION }}-linux-amd64-rpm
+                  path: ./out/make/rpm/x64/AnhePlayer-${{ env.VERSION }}-linux-amd64.rpm
                   retention-days: 30

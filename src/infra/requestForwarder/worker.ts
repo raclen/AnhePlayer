@@ -29,18 +29,15 @@ function forwardRequest(
     url: string,
     method: string,
     headers: Record<string, string>,
+    redirectCount = 0,
 ): void {
-    // 修正 host header
-    let host = headers?.host;
-
-    if (!host || host.includes('localhost') || host.includes('127.0.0.1')) {
-        try {
-            host = new URL(url).host;
-        } catch {
-            clientRes.writeHead(400, { 'Content-Type': 'text/plain' });
-            clientRes.end('Bad Request: Invalid URL');
-            return;
-        }
+    let host: string;
+    try {
+        host = new URL(url).host;
+    } catch {
+        clientRes.writeHead(400, { 'Content-Type': 'text/plain' });
+        clientRes.end('Bad Request: Invalid URL');
+        return;
     }
 
     const isHttps = url.startsWith('https');
@@ -60,6 +57,25 @@ function forwardRequest(
     }
 
     const req = protocol.request(url, options, (targetRes) => {
+        const location = targetRes.headers.location;
+        if (
+            targetRes.statusCode &&
+            targetRes.statusCode >= 300 &&
+            targetRes.statusCode < 400 &&
+            location
+        ) {
+            targetRes.resume();
+            if (redirectCount >= 5) {
+                clientRes.writeHead(508, { 'Content-Type': 'text/plain' });
+                clientRes.end('Redirect loop');
+                return;
+            }
+
+            const nextUrl = new URL(location, url).toString();
+            forwardRequest(clientRes, nextUrl, method, headers, redirectCount + 1);
+            return;
+        }
+
         clientRes.writeHead(targetRes.statusCode ?? 502, targetRes.headers);
         targetRes.pipe(clientRes, { end: true });
     });

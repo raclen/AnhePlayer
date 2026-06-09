@@ -38,7 +38,7 @@ export default function ThemePage() {
         const result = await systemUtil.showOpenDialog({
             filters: [
                 {
-                    name: t('theme.musicfree_theme'),
+                    name: t('theme.anhe_player_theme'),
                     extensions: ['mftheme', 'zip'],
                 },
                 { name: t('theme.all_files'), extensions: ['*'] },

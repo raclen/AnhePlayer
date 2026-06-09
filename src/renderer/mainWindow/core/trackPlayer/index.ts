@@ -254,9 +254,11 @@ class TrackPlayer {
 
         // 相同歌曲处理
         if (this.playQueue.getCurrentIndex() === index && this.isCurrentMusic(targetSlim)) {
-            if (options.restartOnSameMedia) this.audioController.seekTo(0);
-            this.audioController.play();
-            return;
+            if (this.audioController.hasSource) {
+                if (options.restartOnSameMedia) this.audioController.seekTo(0);
+                this.audioController.play();
+                return;
+            }
         }
 
         // 切歌
@@ -267,8 +269,10 @@ class TrackPlayer {
         this.resetProgress();
 
         try {
-            // 从 SQLite 获取完整数据（一首，一次 IPC）
-            const fullItem = await musicSheet.getRawMusicItem(targetSlim.platform, targetSlim.id);
+            // 从 SQLite 获取完整数据；搜索结果刚入队时持久化可能尚未完成，回退到队列内存缓存。
+            const fullItem =
+                (await musicSheet.getRawMusicItem(targetSlim.platform, targetSlim.id)) ??
+                this.playQueue.getRawItem(targetSlim);
             const musicItem: IMusic.IMusicItem = fullItem ?? (targetSlim as IMusic.IMusicItem);
 
             // 获取音源：优先使用已下载的本地文件
@@ -461,7 +465,9 @@ class TrackPlayer {
         try {
             store.set(playerStateAtom, PlayerState.Buffering);
 
-            const fullItem = await musicSheet.getRawMusicItem(current.platform, current.id);
+            const fullItem =
+                (await musicSheet.getRawMusicItem(current.platform, current.id)) ??
+                this.playQueue.getRawItem(current);
             const musicItem = fullItem ?? (current as IMusic.IMusicItem);
 
             // 切换音质：仅在音质匹配时使用本地文件

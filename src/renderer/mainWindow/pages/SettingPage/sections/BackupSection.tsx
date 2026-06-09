@@ -91,10 +91,10 @@ export function BackupSection() {
     const handleBackupToFile = useCallback(async () => {
         const dialogResult = await systemUtil.showSaveDialog({
             title: t('settings.backup.backup_music_sheet'),
-            defaultPath: `MusicFreeBackup_${formatDate()}.json`,
+            defaultPath: `AnhePlayerBackup_${formatDate()}.json`,
             filters: [
                 {
-                    name: t('settings.backup.musicfree_backup_file'),
+                    name: t('settings.backup.anhe_player_backup_file'),
                     extensions: ['json'],
                 },
             ],
@@ -128,7 +128,7 @@ export function BackupSection() {
             title: t('settings.backup.resume_music_sheet'),
             filters: [
                 {
-                    name: t('settings.backup.musicfree_backup_file'),
+                    name: t('settings.backup.anhe_player_backup_file'),
                     extensions: ['json'],
                 },
             ],

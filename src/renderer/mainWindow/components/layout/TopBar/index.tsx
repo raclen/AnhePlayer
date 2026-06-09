@@ -26,6 +26,7 @@ export default function TopBar() {
     const [isPanelOpen, setIsPanelOpen] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const blurTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+    const isComposingRef = useRef(false);
 
     // ── 路由同步：当导航到搜索页时，同步搜索框文本 ──
     const searchMatch = useMatch(`/${RoutePaths.Search}/:query`);
@@ -81,6 +82,11 @@ export default function TopBar() {
 
     const handleSearchKeyDown = useCallback(
         (e: KeyboardEvent<HTMLInputElement>) => {
+            const nativeEvent = e.nativeEvent as { isComposing?: boolean; keyCode?: number };
+            if (isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229) {
+                return;
+            }
+
             if (e.key === 'Enter') {
                 commitSearch(searchValue);
             }
@@ -178,6 +184,13 @@ export default function TopBar() {
                     onFocus={handleFocus}
                     onBlur={handleBlur}
                     onKeyDown={handleSearchKeyDown}
+                    onCompositionStart={() => {
+                        isComposingRef.current = true;
+                    }}
+                    onCompositionEnd={(e) => {
+                        isComposingRef.current = false;
+                        setSearchValue(e.currentTarget.value);
+                    }}
                 />
 
                 {/* ── 搜索面板 ── */}

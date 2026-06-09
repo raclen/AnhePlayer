@@ -38,11 +38,9 @@ import {
 } from '../common/constant';
 import {
     computeHash,
-    executePluginCode,
+    executeLxPluginCode,
     extractPluginDelegate,
-    type ISandboxOptions,
 } from './pluginSandbox';
-import { PluginStorage } from './pluginStorage';
 import { methodNormalizers } from './normalizer';
 import type { IAppConfigReader } from '@appTypes/infra/appConfig';
 import type { IMediaMetaProvider } from '@appTypes/infra/mediaMeta';
@@ -56,6 +54,8 @@ interface ILoadedPlugin {
     instance: IPlugin.IPluginInstance;
     /** 插件代码哈希 */
     hash: string;
+    /** 源文件代码哈希。洛雪插件一个文件可生成多个实例。 */
+    sourceHash: string;
     /** 可序列化的代理对象 */
     delegate: IPlugin.IPluginDelegate;
 }
@@ -63,7 +63,6 @@ interface ILoadedPlugin {
 class PluginManager {
     private isSetup = false;
     private windowManager: IWindowManager | null = null;
-    private pluginStorage: PluginStorage | null = null;
     private appConfigReader: IAppConfigReader | null = null;
     private mediaMeta!: IMediaMetaProvider;
     private musicItemProvider!: IMusicItemProvider;
@@ -118,9 +117,6 @@ class PluginManager {
             fs.mkdirSync(this.pluginBasePath, { recursive: true });
         }
 
-        // 初始化插件存储
-        this.pluginStorage = new PluginStorage(userDataPath);
-
         // 加载 meta
         this.loadMeta();
 
@@ -172,29 +168,45 @@ class PluginManager {
         this.builtinPlugins.set(instance.platform, instance);
 
         const delegate = extractPluginDelegate(instance, hash);
-        const loaded: ILoadedPlugin = { instance, hash, delegate };
+        const loaded: ILoadedPlugin = { instance, hash, sourceHash: hash, delegate };
         this.plugins.set(hash, loaded);
 
         this.onPluginListChanged();
     }
 
+    /** 注册内置洛雪插件文件。一个文件可声明多个音源。 */
+    public async registerBuiltinLxPlugin(pluginPath: string): Promise<void> {
+        if (!fs.existsSync(pluginPath)) return;
+
+        try {
+            const code = fs.readFileSync(pluginPath, 'utf-8');
+            const sourceHash = `builtin-lx:${computeHash(code)}`;
+            const loadedPlugins = await this.parsePluginCode(code, sourceHash, pluginPath);
+
+            for (const loaded of loadedPlugins) {
+                this.builtinPlugins.set(loaded.instance.platform, loaded.instance);
+                this.plugins.set(loaded.hash, loaded);
+            }
+
+            if (loadedPlugins.length > 0) {
+                this.onPluginListChanged();
+            }
+        } catch (err) {
+            console.error(`[PluginManager] Failed to register builtin lx plugin ${pluginPath}:`, err);
+        }
+    }
+
     /** 应用退出时调用 */
     public dispose(): void {
-        this.pluginStorage?.flush();
+        // no-op
     }
 
     // ─── 安装/卸载/更新 ───
 
     /**
-     * 安装插件：支持 URL（http/https）、本地 .js 文件、或包含 plugins 数组的 .json 文件。
-     * JSON 格式：{ plugins: [{ url: "https://..." }, ...] }
+     * 安装洛雪插件：支持 URL（http/https）或本地 .js 文件。
      */
     public async installPlugin(urlOrPath: string): Promise<{ success: boolean; message?: string }> {
-        // JSON 批量安装支持
-        if (urlOrPath.endsWith('.json')) {
-            return this.installPluginsFromJson(urlOrPath);
-        }
-
         return this.installSinglePlugin(urlOrPath);
     }
 
@@ -299,18 +311,14 @@ class PluginManager {
                         continue;
                     }
 
-                    const instance = executePluginCode(
-                        code,
-                        hash,
-                        this.pluginStorage!,
-                        filePath,
-                        this.buildSandboxOptions(hash),
-                    );
-                    if (!instance) continue;
+                    const loadedPlugins = await this.parsePluginCode(code, hash, filePath);
+                    if (!loadedPlugins.length) continue;
 
-                    const delegate = extractPluginDelegate(instance, hash);
-                    this.plugins.set(hash, { instance, hash, delegate });
-                    loadedHashes.add(hash);
+                    for (const loaded of loadedPlugins) {
+                        if (loadedHashes.has(loaded.hash)) continue;
+                        this.plugins.set(loaded.hash, loaded);
+                        loadedHashes.add(loaded.hash);
+                    }
                 } catch (err) {
                     console.error(`[PluginManager] Failed to load plugin file ${file}:`, err);
                 }
@@ -385,52 +393,6 @@ class PluginManager {
         return result;
     }
 
-    /** JSON 批量安装 */
-    private async installPluginsFromJson(
-        jsonUrlOrPath: string,
-    ): Promise<{ success: boolean; message?: string }> {
-        try {
-            let jsonText: string;
-
-            if (jsonUrlOrPath.startsWith('http://') || jsonUrlOrPath.startsWith('https://')) {
-                const resp = await axios.get(this.addRandomHash(jsonUrlOrPath), {
-                    timeout: 15000,
-                    responseType: 'text',
-                });
-                jsonText = resp.data;
-            } else {
-                jsonText = fs.readFileSync(jsonUrlOrPath, 'utf-8');
-            }
-
-            const jsonData = JSON.parse(jsonText);
-            const pluginUrls: string[] = (jsonData?.plugins ?? [])
-                .map((p: any) => p?.url)
-                .filter(Boolean);
-
-            if (pluginUrls.length === 0) {
-                return { success: false, message: 'No plugin URLs found in JSON' };
-            }
-
-            let installed = 0;
-            let failed = 0;
-            for (const url of pluginUrls) {
-                const result = await this.installSinglePlugin(url);
-                if (result.success) {
-                    installed++;
-                } else {
-                    failed++;
-                }
-            }
-
-            return {
-                success: installed > 0,
-                message: `Installed: ${installed}, Failed: ${failed}`,
-            };
-        } catch (err: any) {
-            return { success: false, message: err?.message ?? 'Failed to parse JSON' };
-        }
-    }
-
     /** 安装单个插件 */
     private async installSinglePlugin(
         urlOrPath: string,
@@ -466,14 +428,8 @@ class PluginManager {
             fs.writeFileSync(filePath, code, 'utf-8');
 
             // 在沙箱中执行（使用真实路径，避免重复执行）
-            const instance = executePluginCode(
-                code,
-                hash,
-                this.pluginStorage!,
-                filePath,
-                this.buildSandboxOptions(hash),
-            );
-            if (!instance) {
+            const loadedPlugins = await this.parsePluginCode(code, hash, filePath);
+            if (!loadedPlugins.length) {
                 // 清理
                 try {
                     fs.unlinkSync(filePath);
@@ -484,36 +440,59 @@ class PluginManager {
             }
 
             // 检查是否有同平台的旧版插件
-            const existingEntry = this.findPluginByPlatform(instance.platform);
-            if (existingEntry) {
-                // 版本比较：仅在新版本更高时安装（可通过配置跳过）
-                const skipVersionCheck =
-                    this.appConfigReader?.getConfigByKey('plugin.notCheckPluginVersion') ?? false;
-                if (
-                    !skipVersionCheck &&
-                    existingEntry.instance.version &&
-                    instance.version &&
-                    compare(existingEntry.instance.version, instance.version, '>')
-                ) {
-                    // 回滚：删除刚写入的文件
+            const existingEntries = this.findPluginsByPlatforms(
+                loadedPlugins.map((loaded) => loaded.instance.platform),
+            );
+            if (existingEntries.length > 0) {
+                if (existingEntries.some((entry) => this.isBuiltinPlugin(entry))) {
                     try {
                         fs.unlinkSync(filePath);
                     } catch {
                         /* ignore */
                     }
-                    return {
-                        success: false,
-                        message: `Existing version ${existingEntry.instance.version} >= ${instance.version}`,
-                    };
+                    return { success: false, message: 'Plugin already installed' };
+                }
+
+                // 版本比较：仅在新版本更高时安装（可通过配置跳过）
+                const skipVersionCheck =
+                    this.appConfigReader?.getConfigByKey('plugin.notCheckPluginVersion') ?? false;
+                if (!skipVersionCheck) {
+                    for (const existingEntry of existingEntries) {
+                        const nextEntry = loadedPlugins.find(
+                            (loaded) =>
+                                loaded.instance.platform === existingEntry.instance.platform,
+                        );
+                        if (
+                            existingEntry.instance.version &&
+                            nextEntry?.instance.version &&
+                            compare(existingEntry.instance.version, nextEntry.instance.version, '>')
+                        ) {
+                            // 回滚：删除刚写入的文件
+                            try {
+                                fs.unlinkSync(filePath);
+                            } catch {
+                                /* ignore */
+                            }
+                            return {
+                                success: false,
+                                message: `Existing version ${existingEntry.instance.version} >= ${nextEntry.instance.version}`,
+                            };
+                        }
+                    }
                 }
 
                 // 删除旧插件文件
-                this.removePluginFile(existingEntry);
-                this.plugins.delete(existingEntry.hash);
+                for (const group of this.groupPluginsBySource(existingEntries)) {
+                    this.removePluginFile(group[0]);
+                    for (const loaded of group) {
+                        this.plugins.delete(loaded.hash);
+                    }
+                }
             }
 
-            const delegate = extractPluginDelegate(instance, hash);
-            this.plugins.set(hash, { instance, hash, delegate });
+            for (const loaded of loadedPlugins) {
+                this.plugins.set(loaded.hash, loaded);
+            }
 
             this.onPluginListChanged();
             return { success: true };
@@ -529,19 +508,22 @@ class PluginManager {
         if (!loaded) {
             return { success: false, message: 'Plugin not found' };
         }
+        const sourceGroup = this.getPluginsBySourceHash(loaded.sourceHash);
+        if (sourceGroup.some((item) => this.isBuiltinPlugin(item))) {
+            return { success: false, message: 'Cannot uninstall builtin plugin' };
+        }
 
         // 删除文件
         this.removePluginFile(loaded);
 
-        // 清除存储
-        this.pluginStorage?.clearPlugin(hash);
+        for (const item of sourceGroup) {
+            // 清除 meta
+            delete this.pluginMeta[item.hash];
 
-        // 清除 meta
-        delete this.pluginMeta[hash];
+            // 移除记录
+            this.plugins.delete(item.hash);
+        }
         this.saveMeta();
-
-        // 移除记录
-        this.plugins.delete(hash);
 
         this.onPluginListChanged();
         return { success: true };
@@ -554,7 +536,8 @@ class PluginManager {
             return { success: false, message: 'Plugin not found' };
         }
 
-        const srcUrl = loaded.instance.srcUrl;
+        const sourceGroup = this.getPluginsBySourceHash(loaded.sourceHash);
+        const srcUrl = sourceGroup.find((it) => it.instance.srcUrl)?.instance.srcUrl;
         if (!srcUrl) {
             return { success: false, message: 'Plugin has no srcUrl for update' };
         }
@@ -568,34 +551,34 @@ class PluginManager {
             const newCode = resp.data as string;
             const newHash = computeHash(newCode);
 
-            if (!newHash || newHash === hash) {
+            if (!newHash || newHash === loaded.sourceHash) {
                 return { success: false, message: 'No update available' };
             }
 
-            const testInstance = executePluginCode(
-                newCode,
-                newHash,
-                this.pluginStorage!,
-                '',
-                this.buildSandboxOptions(newHash),
-            );
-            if (!testInstance) {
+            const testPlugins = await this.parsePluginCode(newCode, newHash, '');
+            if (!testPlugins.length) {
                 return { success: false, message: 'Failed to parse new plugin version' };
             }
 
             // 版本比较（如有版本号，可通过配置跳过）
             const skipVersionCheck =
                 this.appConfigReader?.getConfigByKey('plugin.notCheckPluginVersion') ?? false;
-            if (
-                !skipVersionCheck &&
-                loaded.instance.version &&
-                testInstance.version &&
-                compare(loaded.instance.version, testInstance.version, '>=')
-            ) {
-                return {
-                    success: false,
-                    message: `Current ${loaded.instance.version} >= new ${testInstance.version}`,
-                };
+            if (!skipVersionCheck) {
+                for (const current of sourceGroup) {
+                    const next = testPlugins.find(
+                        (it) => it.instance.platform === current.instance.platform,
+                    );
+                    if (
+                        current.instance.version &&
+                        next?.instance.version &&
+                        compare(current.instance.version, next.instance.version, '>=')
+                    ) {
+                        return {
+                            success: false,
+                            message: `Current ${current.instance.version} >= new ${next.instance.version}`,
+                        };
+                    }
+                }
             }
 
             // 新版本验证通过，写入文件
@@ -604,21 +587,24 @@ class PluginManager {
             fs.writeFileSync(filePath, newCode, 'utf-8');
 
             // 删除旧插件文件（不清除存储和 meta）
-            this.removePluginFile(loaded);
-            this.plugins.delete(hash);
-
-            // 复用已验证的 testInstance，更新其 _path 为实际文件路径
-            testInstance._path = filePath;
-
-            const delegate = extractPluginDelegate(testInstance, newHash);
-            this.plugins.set(newHash, { instance: testInstance, hash: newHash, delegate });
-
-            // 迁移 meta 到新 hash
-            if (this.pluginMeta[hash]) {
-                this.pluginMeta[newHash] = this.pluginMeta[hash];
-                delete this.pluginMeta[hash];
-                this.saveMeta();
+            this.removePluginFile(sourceGroup[0]);
+            for (const current of sourceGroup) {
+                this.plugins.delete(current.hash);
             }
+
+            // 使用真实路径重新解析，保证 _path 正确
+            const nextPlugins = await this.parsePluginCode(newCode, newHash, filePath);
+            for (const next of nextPlugins) {
+                const previous = sourceGroup.find(
+                    (current) => current.instance.platform === next.instance.platform,
+                );
+                if (previous?.hash && this.pluginMeta[previous.hash]) {
+                    this.pluginMeta[next.hash] = this.pluginMeta[previous.hash];
+                    delete this.pluginMeta[previous.hash];
+                }
+                this.plugins.set(next.hash, next);
+            }
+            this.saveMeta();
 
             this.onPluginListChanged();
             return { success: true };
@@ -635,9 +621,15 @@ class PluginManager {
 
         // 收集需要更新的插件（有 srcUrl 的非内建插件）
         const updatable: ILoadedPlugin[] = [];
+        const seenSourceHashes = new Set<string>();
         for (const loaded of this.plugins.values()) {
-            if (loaded.instance.srcUrl && !this.builtinPlugins.has(loaded.instance.platform)) {
+            if (
+                loaded.instance.srcUrl &&
+                !this.builtinPlugins.has(loaded.instance.platform) &&
+                !seenSourceHashes.has(loaded.sourceHash)
+            ) {
                 updatable.push(loaded);
+                seenSourceHashes.add(loaded.sourceHash);
             }
         }
 
@@ -670,6 +662,61 @@ class PluginManager {
         return undefined;
     }
 
+    /** 通过多个 platform 查找插件，并按源文件去重 */
+    private findPluginsByPlatforms(platforms: string[]): ILoadedPlugin[] {
+        const result = new Map<string, ILoadedPlugin>();
+        for (const platform of platforms) {
+            const loaded = this.findPluginByPlatform(platform);
+            if (loaded) {
+                result.set(loaded.hash, loaded);
+            }
+        }
+        return Array.from(result.values());
+    }
+
+    /** 获取同一源文件生成的所有插件实例 */
+    private getPluginsBySourceHash(sourceHash: string): ILoadedPlugin[] {
+        return Array.from(this.plugins.values()).filter(
+            (loaded) => loaded.sourceHash === sourceHash,
+        );
+    }
+
+    /** 将插件按源文件分组 */
+    private groupPluginsBySource(plugins: ILoadedPlugin[]): ILoadedPlugin[][] {
+        const groups = new Map<string, ILoadedPlugin[]>();
+        for (const plugin of plugins) {
+            const group = groups.get(plugin.sourceHash) ?? [];
+            group.push(...this.getPluginsBySourceHash(plugin.sourceHash));
+            groups.set(plugin.sourceHash, Array.from(new Set(group)));
+        }
+        return Array.from(groups.values());
+    }
+
+    /** 判断是否为内建插件 */
+    private isBuiltinPlugin(loaded: ILoadedPlugin): boolean {
+        return this.builtinPlugins.has(loaded.instance.platform);
+    }
+
+    /** 解析洛雪插件代码 */
+    private async parsePluginCode(
+        code: string,
+        sourceHash: string,
+        filePath: string,
+    ): Promise<ILoadedPlugin[]> {
+        const lxInstances = await executeLxPluginCode(code, sourceHash, filePath);
+        if (!lxInstances?.length) return [];
+
+        return lxInstances.map((instance) => {
+            const hash = `${sourceHash}:${instance.platform}`;
+            return {
+                instance,
+                hash,
+                sourceHash,
+                delegate: extractPluginDelegate(instance, hash),
+            };
+        });
+    }
+
     /**
      * 解析音源重定向：检查源插件是否设置了 sourceRedirectPlatform，
      * 如果目标插件存在且支持 getMediaSource，则返回目标插件的 hash。
@@ -690,26 +737,6 @@ class PluginManager {
         if (target.hash === sourceHash) return sourceHash;
 
         return target.hash;
-    }
-
-    /**
-     * 构建沙箱选项：将运行时上下文（用户变量、语言等）注入到沙箱环境。
-     * getUserVariables 通过闭包捕获 hash，在插件方法调用时动态读取最新值。
-     */
-    private buildSandboxOptions(hash: string): ISandboxOptions {
-        return {
-            getUserVariables: () => {
-                const meta = this.pluginMeta[hash];
-                return meta?.userVariables ?? {};
-            },
-            getLang: () => {
-                try {
-                    return this.appConfigReader?.getConfigByKey('normal.language') ?? '';
-                } catch {
-                    return '';
-                }
-            },
-        };
     }
 
     // ─── Meta 管理 ───
