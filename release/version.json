@@ -1,9 +1,9 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "changeLog": [
-    "移除内置测试音源，支持安装洛雪音源插件",
-    "修复洛雪插件搜索结果播放失败问题",
-    "优化 Linux 打包与 GitHub Actions 构建"
+    "补全 wy/kw/mg 音源搜索适配与结果字段映射",
+    "修复多音源歌曲播放、歌词与封面获取",
+    "更新播放器侧边栏品牌显示为 Anhe"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"

@@ -1,7 +1,7 @@
 {
     "name": "anhe-player",
     "productName": "安禾播放器",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "description": "一个插件化的音乐播放器",
     "main": ".webpack/main",
     "private": true,
