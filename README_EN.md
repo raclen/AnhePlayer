@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="./res/logo.png" width="96" height="96" alt="Anhe Player logo" />
+<img src="./res/logo.svg" width="96" height="96" alt="Anhe Player logo" />
 
 # Anhe Player
 
-A cross-platform, plugin-based, customizable desktop music player.
+A cross-platform, customizable desktop music player with plugin support.
 
 English | [简体中文](./README.md)
 
@@ -16,7 +16,7 @@ English | [简体中文](./README.md)
 
 ## Overview
 
-Anhe Player is an Electron-based desktop music player for Windows, macOS, and Linux. It focuses on local data, plugin-based playback parsing, and UI customization. It does not include ads and does not upload your personal data.
+Anhe Player is an Electron-based desktop music player for Windows, macOS, and Linux. It focuses on local data, external-plugin playback parsing, and UI customization. It does not include ads and does not upload your personal data.
 
 ## Download
 
@@ -42,23 +42,14 @@ Available packages include:
 
 ## Plugins
 
-Anhe Player supports LX `.js` plugin files and http(s) plugin links ending in `.js`.
+Anhe Player does not ship with built-in playback parser plugins. You can install LX `.js` plugin files or add http(s) plugin links ending in `.js` from the plugin manager.
 
-The built-in plugin is [`changqing_chajian.js`](./changqing_chajian.js) in the repository root. It is loaded on startup as an LX plugin. Sources declared by the plugin are adapted into playback parser sources and can be used for source redirect.
-
-Built-in parser sources:
-
-- `kg音乐`
-- `tx音乐`
-- `wy音乐`
-- `kw音乐`
-- `mg音乐`
+Sources declared by installed plugins are adapted into playback parser sources and can be used for playback parsing, multi-quality switching, and source redirect.
 
 Plugin capability summary:
 
 ```text
 Playback parsing    LX musicUrl parsing, multi-quality switching, source redirect
-Sources             Kugou, QQ Music, NetEase Cloud Music, Kuwo, Migu
 Install             Local .js file, remote .js link
 ```
 
