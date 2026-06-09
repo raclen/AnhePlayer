@@ -91,6 +91,8 @@ class ProxyManager {
         }
 
         // 2) 全局 axios defaults — 覆盖 downloadManager / pluginManager / 插件沙箱
+        // axios 会自动读取 HTTP_PROXY / HTTPS_PROXY 等环境变量；应用内代理配置应当是唯一来源。
+        axios.defaults.proxy = false;
         if (config) {
             axios.defaults.httpAgent = new HttpProxyAgent(config.proxyUrl);
             axios.defaults.httpsAgent = new HttpsProxyAgent(config.proxyUrl);

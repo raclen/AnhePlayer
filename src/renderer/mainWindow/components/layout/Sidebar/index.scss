@@ -25,10 +25,13 @@
         cursor: pointer;
     }
 
-    &__logo-svg {
-        height: 16px;
-        width: auto;
+    &__logo-text {
         color: var(--color-text-brand);
+        font-size: var(--text-title-size);
+        font-weight: var(--font-weight-bold);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     // ── 导航 ──

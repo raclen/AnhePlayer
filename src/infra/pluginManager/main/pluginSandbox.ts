@@ -64,6 +64,9 @@ const LX_QUALITY_MAP: Record<IMusic.IQualityKey, string> = {
 };
 
 const LX_SEARCH_PAGE_SIZE = 30;
+const BROWSER_USER_AGENT = 'Mozilla/5.0';
+const MOBILE_USER_AGENT =
+    'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
 
 type ILxRequestHandler = (payload: {
     source: string;
@@ -81,6 +84,16 @@ interface ILxSourceDefine {
 interface ILxInitedPayload {
     sources?: Record<string, ILxSourceDefine>;
 }
+
+type ILxMusicSearcher = (
+    query: string,
+    page: number,
+    platform: string,
+) => Promise<IPlugin.ISearchResult<'music'>>;
+type ILxLyricGetter = (musicInfo: Record<string, any>) => Promise<ILyric.ILyricSource | null>;
+type ILxMusicInfoGetter = (
+    musicInfo: Record<string, any>,
+) => Promise<Partial<IMusic.IMusicItem> | null>;
 
 function readPluginHeader(code: string): Record<string, string> {
     const match = code.match(/\/\*\*([\s\S]*?)\*\//);
@@ -102,6 +115,103 @@ function extractLxMusicInfo(musicItem: IMusic.IMusicItemPartial): Record<string,
         ...raw,
         ...musicItem,
     };
+}
+
+function buildLxMusicInfo(
+    musicItem: IMusic.IMusicItemPartial,
+    sourceKey: string,
+): Record<string, any> {
+    const info = extractLxMusicInfo(musicItem);
+    const fallbackId =
+        info.id ??
+        info.songId ??
+        info.songmid ??
+        info.hash ??
+        info.rid ??
+        info.DC_TARGETID ??
+        info.contentId ??
+        info.copyrightId;
+
+    if (sourceKey === 'kg') {
+        info.hash ??= fallbackId;
+    } else {
+        info.songmid ??= fallbackId;
+    }
+
+    return info;
+}
+
+function getMiguToneFlag(quality: IMusic.IQualityKey): string {
+    if (quality === 'low') return 'LQ';
+    if (quality === 'high') return 'HQ';
+    if (quality === 'super') return 'SQ';
+    return 'PQ';
+}
+
+async function getOfficialLxMediaSource(
+    sourceKey: string,
+    musicInfo: Record<string, any>,
+    quality: IMusic.IQualityKey,
+): Promise<IPlugin.IMediaSourceResult | null> {
+    if (sourceKey === 'wy') {
+        const songId = musicInfo.songmid ?? musicInfo.id ?? musicInfo.songId;
+        if (!songId) return null;
+
+        return {
+            url: `https://music.163.com/song/media/outer/url?id=${encodeURIComponent(
+                String(songId),
+            )}.mp3`,
+            headers: {
+                Referer: 'https://music.163.com/',
+                'User-Agent': BROWSER_USER_AGENT,
+            },
+            quality,
+        };
+    }
+
+    if (sourceKey === 'mg') {
+        const contentId =
+            musicInfo.contentId ?? (/^\w{18}$/.test(String(musicInfo.id)) ? musicInfo.id : null);
+        if (!contentId) return null;
+
+        const resp = await axios.get(
+            'https://app.pd.nf.migu.cn/MIGUM2.0/v1.0/content/sub/listenSong.do',
+            {
+                params: {
+                    contentId,
+                    copyrightId: musicInfo.copyrightId ?? '0',
+                    resourceType: musicInfo.resourceType ?? '2',
+                    toneFlag: getMiguToneFlag(quality),
+                    netType: '00',
+                    userId: '15548614588710179085069',
+                    ua: 'Android_migu',
+                    version: '5.1',
+                    channel: '0',
+                },
+                headers: {
+                    'User-Agent': MOBILE_USER_AGENT,
+                    Referer: 'https://music.migu.cn/',
+                },
+                timeout: 15000,
+                maxRedirects: 0,
+                validateStatus: (status) => status >= 200 && status < 400,
+            },
+        );
+
+        const url = resp.headers.location;
+        if (!url) return null;
+
+        return {
+            url,
+            headers: {
+                Referer: 'https://music.migu.cn/',
+                'User-Agent': MOBILE_USER_AGENT,
+            },
+            quality,
+        };
+    }
+
+    return null;
 }
 
 function normalizeLxMusicUrlResult(result: any): IPlugin.IMediaSourceResult | null {
@@ -164,6 +274,121 @@ function normalizeArtistNames(value: unknown): string {
     return typeof value === 'string' && value ? value : '未知歌手';
 }
 
+function cleanSearchText(value: unknown): string {
+    if (value == null) return '';
+    return String(value)
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .trim();
+}
+
+function decodeTextEntities(value: unknown): string | undefined {
+    if (typeof value !== 'string') return undefined;
+
+    const text = value
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .trim();
+
+    return text || undefined;
+}
+
+function formatLrcTime(value: unknown): string | null {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds < 0) return null;
+
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds - minutes * 60;
+    return `${String(minutes).padStart(2, '0')}:${rest.toFixed(2).padStart(5, '0')}`;
+}
+
+function buildKuwoLyricText(list: unknown): string | undefined {
+    if (!Array.isArray(list)) return undefined;
+
+    const lrc = list
+        .map((item) => {
+            const time = formatLrcTime(item?.time);
+            if (!time) return null;
+            const line = decodeTextEntities(item?.lineLyric) ?? '';
+            return `[${time}]${line}`;
+        })
+        .filter(Boolean)
+        .join('\n');
+
+    return lrc || undefined;
+}
+
+function normalizeDurationSeconds(value: unknown): number | undefined {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return undefined;
+    return n > 10000 ? Math.round(n / 1000) : Math.round(n);
+}
+
+function buildKuwoArtwork(path: unknown): string | undefined {
+    if (typeof path !== 'string' || !path) return undefined;
+    if (/^https?:\/\//i.test(path)) return path;
+    return `https://img4.kuwo.cn/star/albumcover/${path}`;
+}
+
+function pickMiguArtwork(items: unknown): string | undefined {
+    if (!Array.isArray(items)) return undefined;
+    const preferred =
+        items.find((item) => item?.imgSizeType === '02') ??
+        items.find((item) => item?.imgSizeType === '01') ??
+        items[0];
+    return typeof preferred?.img === 'string' ? preferred.img : undefined;
+}
+
+async function fetchNeteaseSongDetails(songIds: unknown[]): Promise<Map<string, any>> {
+    const ids = songIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+    if (!ids.length) return new Map();
+
+    try {
+        const resp = await axios.get('https://music.163.com/api/song/detail/', {
+            params: {
+                ids: JSON.stringify(ids),
+            },
+            headers: {
+                Referer: 'https://music.163.com/',
+                'User-Agent': BROWSER_USER_AGENT,
+            },
+            timeout: 15000,
+            responseType: 'json',
+        });
+
+        const songs = Array.isArray(resp.data?.songs) ? resp.data.songs : [];
+        return new Map(songs.map((song: any) => [String(song.id), song]));
+    } catch {
+        return new Map();
+    }
+}
+
+function mapNeteaseSongInfo(
+    song: any,
+    platform: string,
+): Partial<IMusic.IMusicItem> & Record<string, any> {
+    const album = song?.album ?? song?.al ?? {};
+    return {
+        id: String(song?.id),
+        platform,
+        title: cleanSearchText(song?.name),
+        artist: normalizeArtistNames(song?.artists ?? song?.ar),
+        album: cleanSearchText(album?.name),
+        artwork: album?.picUrl ?? album?.blurPicUrl,
+        duration: normalizeDurationSeconds(song?.duration ?? song?.dt),
+        raw: song,
+        songId: song?.id,
+        songmid: song?.id,
+    };
+}
+
 async function searchTencentMusic(
     query: string,
     page: number,
@@ -177,7 +402,7 @@ async function searchTencentMusic(
             n: LX_SEARCH_PAGE_SIZE,
         },
         headers: {
-            'User-Agent': 'Mozilla/5.0',
+            'User-Agent': BROWSER_USER_AGENT,
         },
         timeout: 15000,
         responseType: 'json',
@@ -205,6 +430,56 @@ async function searchTencentMusic(
     };
 }
 
+async function searchNeteaseMusic(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'music'>> {
+    const currentPage = Math.max(page, 1);
+    const resp = await axios.post(
+        'https://music.163.com/api/search/get/web',
+        new URLSearchParams({
+            s: query,
+            type: '1',
+            offset: String((currentPage - 1) * LX_SEARCH_PAGE_SIZE),
+            limit: String(LX_SEARCH_PAGE_SIZE),
+        }).toString(),
+        {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                Referer: 'https://music.163.com/',
+                'User-Agent': BROWSER_USER_AGENT,
+            },
+            timeout: 15000,
+            responseType: 'json',
+        },
+    );
+
+    const result = resp.data?.result ?? {};
+    const list = Array.isArray(result.songs) ? result.songs : [];
+    const total = Number(result.songCount ?? 0);
+    const detailById = await fetchNeteaseSongDetails(list.map((item: any) => item.id));
+
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || currentPage * LX_SEARCH_PAGE_SIZE >= total,
+        data: list.map((item: any) => {
+            const detail = detailById.get(String(item.id));
+            const merged = {
+                ...mapNeteaseSongInfo(detail ?? item, platform),
+                raw: {
+                    ...item,
+                    detail,
+                },
+            };
+
+            if (!merged.album) merged.album = cleanSearchText(item.album?.name);
+            if (!merged.artwork) merged.artwork = item.album?.picUrl ?? item.album?.blurPicUrl;
+            if (!merged.duration) merged.duration = normalizeDurationSeconds(item.duration);
+            return merged;
+        }),
+    };
+}
+
 async function searchKugouMusic(
     query: string,
     page: number,
@@ -219,7 +494,7 @@ async function searchKugouMusic(
             showtype: 1,
         },
         headers: {
-            'User-Agent': 'Mozilla/5.0',
+            'User-Agent': BROWSER_USER_AGENT,
         },
         timeout: 15000,
         responseType: 'json',
@@ -244,6 +519,310 @@ async function searchKugouMusic(
         })),
     };
 }
+
+async function searchKuwoMusic(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'music'>> {
+    const currentPage = Math.max(page, 1);
+    const resp = await axios.get('https://search.kuwo.cn/r.s', {
+        params: {
+            client: 'kt',
+            all: query,
+            pn: currentPage - 1,
+            rn: LX_SEARCH_PAGE_SIZE,
+            uid: 0,
+            ver: 'kwplayer_ar_9.2.2.1',
+            vipver: 1,
+            show_copyright_off: 1,
+            newver: 1,
+            ft: 'music',
+            cluster: 0,
+            strategy: 2012,
+            encoding: 'utf8',
+            rformat: 'json',
+            mobi: 1,
+        },
+        headers: {
+            Referer: 'https://www.kuwo.cn/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const list = Array.isArray(resp.data?.abslist) ? resp.data.abslist : [];
+    const total = Number(resp.data?.TOTAL ?? resp.data?.HIT ?? 0);
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || currentPage * LX_SEARCH_PAGE_SIZE >= total,
+        data: list.map((item: any) => {
+            const rid = String(item.DC_TARGETID ?? item.MUSICRID ?? '').replace(/^MUSIC_/, '');
+            return {
+                id: rid,
+                platform,
+                title: cleanSearchText(item.SONGNAME ?? item.NAME),
+                artist: cleanSearchText(item.ARTIST ?? item.FARTIST),
+                album: cleanSearchText(item.ALBUM),
+                artwork: buildKuwoArtwork(item.web_albumpic_short),
+                duration: normalizeDurationSeconds(item.DURATION),
+                raw: item,
+                rid,
+                songmid: rid,
+                musicrid: item.MUSICRID,
+                MUSICRID: item.MUSICRID,
+                DC_TARGETID: item.DC_TARGETID,
+            };
+        }),
+    };
+}
+
+async function searchMiguMusic(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'music'>> {
+    const currentPage = Math.max(page, 1);
+    const resp = await axios.get(
+        'https://pd.musicapp.migu.cn/MIGUM2.0/v1.0/content/search_all.do',
+        {
+            params: {
+                text: query,
+                pageNo: currentPage,
+                pageSize: LX_SEARCH_PAGE_SIZE,
+                searchSwitch: JSON.stringify({
+                    song: 1,
+                    album: 0,
+                    singer: 0,
+                    tagSong: 0,
+                    mvSong: 0,
+                    songlist: 0,
+                    bestShow: 1,
+                }),
+            },
+            headers: {
+                Referer: 'http://music.migu.cn/',
+                'User-Agent': MOBILE_USER_AGENT,
+            },
+            timeout: 15000,
+            responseType: 'json',
+        },
+    );
+
+    const result = resp.data?.songResultData ?? {};
+    const list = Array.isArray(result.result) ? result.result : [];
+    const total = Number(result.totalCount ?? 0);
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || currentPage * LX_SEARCH_PAGE_SIZE >= total,
+        data: list.map((item: any) => {
+            const id = String(item.copyrightId ?? item.contentId ?? item.id);
+            return {
+                id,
+                platform,
+                title: cleanSearchText(item.name),
+                artist: normalizeArtistNames(item.singers),
+                album: cleanSearchText(item.albums?.[0]?.name),
+                artwork: pickMiguArtwork(item.imgItems),
+                raw: item,
+                songId: item.id,
+                songmid: id,
+                contentId: item.contentId,
+                copyrightId: item.copyrightId,
+                lrc: item.lyricUrl,
+            };
+        }),
+    };
+}
+
+async function getNeteaseMusicInfo(
+    musicInfo: Record<string, any>,
+): Promise<Partial<IMusic.IMusicItem> | null> {
+    const songId = musicInfo.songmid ?? musicInfo.songId ?? musicInfo.id;
+    const detailById = await fetchNeteaseSongDetails([songId]);
+    const detail = detailById.get(String(songId));
+    if (!detail) return null;
+
+    return mapNeteaseSongInfo(detail, musicInfo.platform ?? '');
+}
+
+async function getNeteaseLyric(
+    musicInfo: Record<string, any>,
+): Promise<ILyric.ILyricSource | null> {
+    const songId = musicInfo.songmid ?? musicInfo.songId ?? musicInfo.id;
+    if (!songId) return null;
+
+    const resp = await axios.get('https://music.163.com/api/song/lyric', {
+        params: {
+            id: songId,
+            lv: 1,
+            kv: 1,
+            tv: -1,
+        },
+        headers: {
+            Referer: 'https://music.163.com/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const rawLrc = decodeTextEntities(resp.data?.lrc?.lyric);
+    const translation = decodeTextEntities(resp.data?.tlyric?.lyric);
+    if (!rawLrc && !translation) return null;
+
+    return {
+        rawLrc,
+        translation,
+    };
+}
+
+async function getTencentLyric(
+    musicInfo: Record<string, any>,
+): Promise<ILyric.ILyricSource | null> {
+    const songmid = musicInfo.songmid ?? musicInfo.media_mid ?? musicInfo.strMediaMid ?? musicInfo.id;
+    if (!songmid) return null;
+
+    const resp = await axios.get('https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg', {
+        params: {
+            songmid,
+            format: 'json',
+            nobase64: 1,
+        },
+        headers: {
+            Referer: 'https://y.qq.com/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const rawLrc = decodeTextEntities(resp.data?.lyric);
+    const translation = decodeTextEntities(resp.data?.trans);
+    if (!rawLrc && !translation) return null;
+
+    return {
+        rawLrc,
+        translation,
+    };
+}
+
+async function getKugouLyric(
+    musicInfo: Record<string, any>,
+): Promise<ILyric.ILyricSource | null> {
+    const hash = musicInfo.hash ?? musicInfo.id;
+    const keyword = [musicInfo.title ?? musicInfo.songname, musicInfo.artist ?? musicInfo.singername]
+        .filter(Boolean)
+        .join(' ');
+    if (!hash || !keyword) return null;
+
+    const duration = normalizeDurationSeconds(musicInfo.duration);
+    const resp = await axios.get('https://lyrics.kugou.com/search', {
+        params: {
+            ver: 1,
+            man: 'yes',
+            client: 'pc',
+            keyword,
+            duration: duration ? duration * 1000 : undefined,
+            hash,
+        },
+        headers: {
+            Referer: 'https://www.kugou.com/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const candidates = Array.isArray(resp.data?.candidates) ? resp.data.candidates : [];
+    const candidate = candidates[0];
+    if (!candidate?.id || !candidate?.accesskey) return null;
+
+    const downloadResp = await axios.get('https://lyrics.kugou.com/download', {
+        params: {
+            ver: 1,
+            client: 'pc',
+            id: candidate.id,
+            accesskey: candidate.accesskey,
+            fmt: 'lrc',
+            charset: 'utf8',
+        },
+        headers: {
+            Referer: 'https://www.kugou.com/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const content = downloadResp.data?.content;
+    if (typeof content !== 'string' || !content) return null;
+
+    const rawLrc = decodeTextEntities(Buffer.from(content, 'base64').toString('utf8'));
+    return rawLrc ? { rawLrc } : null;
+}
+
+async function getKuwoLyric(
+    musicInfo: Record<string, any>,
+): Promise<ILyric.ILyricSource | null> {
+    const musicId = String(
+        musicInfo.rid ?? musicInfo.songmid ?? musicInfo.DC_TARGETID ?? musicInfo.id ?? '',
+    ).replace(/^MUSIC_/, '');
+    if (!musicId) return null;
+
+    const resp = await axios.get('https://m.kuwo.cn/newh5/singles/songinfoandlrc', {
+        params: {
+            musicId,
+        },
+        headers: {
+            Referer: 'https://m.kuwo.cn/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const rawLrc = buildKuwoLyricText(resp.data?.data?.lrclist);
+    return rawLrc ? { rawLrc } : null;
+}
+
+async function getMiguLyric(
+    musicInfo: Record<string, any>,
+): Promise<ILyric.ILyricSource | null> {
+    const lrcUrl = musicInfo.lrc ?? musicInfo.lyricUrl;
+    if (!lrcUrl) return null;
+
+    const resp = await axios.get(lrcUrl, {
+        headers: {
+            Referer: 'https://music.migu.cn/',
+            'User-Agent': MOBILE_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'text',
+    });
+
+    const rawLrc = decodeTextEntities(resp.data);
+    return rawLrc ? { rawLrc, lrc: lrcUrl } : null;
+}
+
+const LX_MUSIC_SEARCHERS: Record<string, ILxMusicSearcher> = {
+    tx: searchTencentMusic,
+    kg: searchKugouMusic,
+    wy: searchNeteaseMusic,
+    kw: searchKuwoMusic,
+    mg: searchMiguMusic,
+};
+
+const LX_LYRIC_GETTERS: Record<string, ILxLyricGetter> = {
+    tx: getTencentLyric,
+    kg: getKugouLyric,
+    wy: getNeteaseLyric,
+    kw: getKuwoLyric,
+    mg: getMiguLyric,
+};
+
+const LX_MUSIC_INFO_GETTERS: Record<string, ILxMusicInfoGetter> = {
+    wy: getNeteaseMusicInfo,
+};
 
 /**
  * 在沙箱中执行洛雪插件，返回由 initSource 事件声明的音源实例列表。
@@ -402,15 +981,25 @@ export async function executeLxPluginCode(
                 description: meta.description,
                 srcUrl: updateUrl,
                 defaultSearchType: 'music',
-                supportedSearchType:
-                    sourceKey === 'tx' || sourceKey === 'kg' ? ['music'] : [],
+                supportedSearchType: LX_MUSIC_SEARCHERS[sourceKey] ? ['music'] : [],
                 async getMediaSource(musicItem, quality) {
                     const lxQuality = getLxQuality(sourceKey, quality);
+                    const musicInfo = buildLxMusicInfo(musicItem, sourceKey);
+
+                    const officialSource = await getOfficialLxMediaSource(
+                        sourceKey,
+                        musicInfo,
+                        quality,
+                    );
+                    if (officialSource?.url) {
+                        return officialSource;
+                    }
+
                     const payload = {
                         source: sourceKey,
                         action: 'musicUrl',
                         info: {
-                            musicInfo: extractLxMusicInfo(musicItem),
+                            musicInfo,
                             type: lxQuality,
                         },
                     };
@@ -430,17 +1019,29 @@ export async function executeLxPluginCode(
                 },
                 _path: pluginPath,
             };
-            if (sourceKey === 'tx') {
+            const searcher = LX_MUSIC_SEARCHERS[sourceKey];
+            if (searcher) {
                 instance.search = async (query, page, type) => {
                     if (type !== 'music') return { isEnd: true, data: [] } as any;
-                    return searchTencentMusic(query, page, platform) as any;
-                };
-            } else if (sourceKey === 'kg') {
-                instance.search = async (query, page, type) => {
-                    if (type !== 'music') return { isEnd: true, data: [] } as any;
-                    return searchKugouMusic(query, page, platform) as any;
+                    return searcher(query, page, platform) as any;
                 };
             }
+
+            const lyricGetter = LX_LYRIC_GETTERS[sourceKey];
+            if (lyricGetter) {
+                instance.getLyric = async (musicItem) =>
+                    lyricGetter(buildLxMusicInfo(musicItem, sourceKey));
+            }
+
+            const musicInfoGetter = LX_MUSIC_INFO_GETTERS[sourceKey];
+            if (musicInfoGetter) {
+                instance.getMusicInfo = async (musicItem) =>
+                    musicInfoGetter({
+                        ...buildLxMusicInfo(musicItem, sourceKey),
+                        platform,
+                    });
+            }
+
             instances.push(instance);
         }
 
