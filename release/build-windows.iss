@@ -10,6 +10,9 @@
 #ifndef MyAppExeName
 #define MyAppExeName "anhe-player.exe"
 #endif
+#ifndef MyAppPackageDir
+#define MyAppPackageDir "..\out\anhe-player-win32-x64"
+#endif
 #ifndef MyAppId
 #define MyAppId
 #endif
@@ -46,8 +49,8 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.i
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\out\安禾播放器-win32-x64\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\out\安禾播放器-win32-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyAppPackageDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#MyAppPackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
