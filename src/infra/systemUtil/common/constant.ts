@@ -30,13 +30,11 @@ export const IPC = {
 
 /** 版本检查源列表（按优先级排列） */
 export const UPDATE_SOURCES = [
-    'http://musicfree.v1v.fun/version/desktop.json',
-    'https://gitee.com/maotoumao/MusicFreeDesktop/raw/master/release/version.json',
-    'https://cdn.jsdelivr.net/gh/maotoumao/MusicFreeDesktop@master/release/version.json',
-    'https://gh-proxy.org/https://raw.githubusercontent.com/maotoumao/MusicFreeDesktop/master/release/version.json',
-    'https://raw.githubusercontent.com/maotoumao/MusicFreeDesktop/master/release/version.json',
-    'https://hk.gh-proxy.org/https://raw.githubusercontent.com/maotoumao/MusicFreeDesktop/master/release/version.json',
-    'https://cdn.gh-proxy.org/https://raw.githubusercontent.com/maotoumao/MusicFreeDesktop/master/release/version.json',
+    'https://raw.githubusercontent.com/raclen/AnhePlayer/master/release/version.json',
+    'https://cdn.jsdelivr.net/gh/raclen/AnhePlayer@master/release/version.json',
+    'https://gh-proxy.org/https://raw.githubusercontent.com/raclen/AnhePlayer/master/release/version.json',
+    'https://hk.gh-proxy.org/https://raw.githubusercontent.com/raclen/AnhePlayer/master/release/version.json',
+    'https://cdn.gh-proxy.org/https://raw.githubusercontent.com/raclen/AnhePlayer/master/release/version.json',
 ];
 
 /** contextBridge key */

@@ -1,64 +1,52 @@
 <div align="center">
 
-# 🎵 安禾播放器
+<img src="./res/logo.png" width="96" height="96" alt="Anhe Player logo" />
 
-**A customizable, ad-free music player with built-in LX Music source parsing**
+# Anhe Player
 
-[![GitHub Stars](https://img.shields.io/github/stars/maotoumao/AnhePlayerDesktop?style=flat&logo=github&color=yellow)](https://github.com/maotoumao/AnhePlayerDesktop/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/maotoumao/AnhePlayerDesktop?style=flat&logo=github)](https://github.com/maotoumao/AnhePlayerDesktop/network/members)
-[![GitCode Stars](https://gitcode.com/maotoumao/AnhePlayerDesktop/star/badge.svg)](https://gitcode.com/maotoumao/AnhePlayerDesktop)
-[![License](https://img.shields.io/github/license/maotoumao/AnhePlayerDesktop?style=flat&color=blue)](./LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/maotoumao/AnhePlayerDesktop/total?style=flat&color=green)](https://github.com/maotoumao/AnhePlayerDesktop/releases)
-[![Issues](https://img.shields.io/github/issues/maotoumao/AnhePlayerDesktop?style=flat)](https://github.com/maotoumao/AnhePlayerDesktop/issues)
-[![Version](https://img.shields.io/github/package-json/v/maotoumao/AnhePlayerDesktop?style=flat&color=orange)](./package.json)
+A cross-platform, plugin-based, customizable desktop music player.
 
-<a href="https://trendshift.io/repositories/3961" target="_blank"><img src="https://trendshift.io/api/badge/repositories/3961" alt="maotoumao%2FAnhePlayerDesktop | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+English | [简体中文](./README.md)
 
-English | **[简体中文](./README.md)**
+[![License](https://img.shields.io/github/license/raclen/AnhePlayer?style=flat&color=blue)](./LICENSE)
+[![Version](https://img.shields.io/github/package-json/v/raclen/AnhePlayer?style=flat&color=orange)](./package.json)
+[![Release](https://img.shields.io/github/v/release/raclen/AnhePlayer?style=flat&color=green)](https://github.com/raclen/AnhePlayer/releases)
 
 </div>
 
----
+## Overview
 
-> [!IMPORTANT]
-> **Usage Agreement**
->
-> This project is open-sourced under the [AGPL 3.0](./LICENSE) license. Please comply with the license when using this project. Additionally, please be aware of the following:
->
-> 1. When packaging or redistributing, **please credit the source**: https://github.com/maotoumao/MusicFree
-> 2. Do not use for commercial purposes; use the code legally and compliantly
-> 3. If the license changes, it will be updated in this GitHub repository without separate notice
+Anhe Player is an Electron-based desktop music player for Windows, macOS, and Linux. It focuses on local data, plugin-based playback parsing, and UI customization. It does not include ads and does not upload your personal data.
 
----
+## Download
 
-## ✨ Introduction
+Download the latest release from [GitHub Releases](https://github.com/raclen/AnhePlayer/releases).
 
-A plugin-based, customizable, ad-free music player for **Windows**, **macOS**, and **Linux**.
+Available packages include:
 
-### 📥 Download
+- Windows installer and portable package
+- Windows 7 compatible installer and portable package
+- macOS x64 and arm64 DMG packages
+- Linux amd64 DEB and RPM packages
 
-👉 [Feishu Cloud Drive](https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink)
+## Features
 
----
+| Feature                       | Description                                                                      |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| Cross-platform desktop app    | Supports Windows, macOS, and Linux                                               |
+| Plugin-based playback parsing | Supports LX `.js` plugins for playback URL parsing                               |
+| Source redirect               | Routes playback requests to available parser sources                             |
+| Multi-quality playback        | Supports low, standard, high, and super quality options when provided by plugins |
+| Theme packs                   | Customizes colors, backgrounds, and the overall app appearance                   |
+| Local data                    | App data stays on your device and personal data is not uploaded                  |
 
-## 🚀 Features
+## Plugins
 
-|       Feature       | Description                                                                                                                                                                                                                                                       |
-| :-----------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **🔌 LX Music source** | Bundles the `changqing_chajian.js` LX Music plugin for playback URL parsing across Kugou, QQ Music, NetEase Cloud Music, Kuwo, and Migu. Playback can be routed through these sources with source redirect. |
-| **🎨 Customizable** | Customize the app's appearance and background via theme packs, with a brand-new semantic CSS variable system and iframe backgrounds. See [Theme Packs](#-theme-packs) below.                                                                                      |
-|   **🚫 Ad-free**    | Open-sourced under AGPL 3.0, and will remain free.                                                                                                                                                                                                                |
-|   **🔒 Privacy**    | All data is stored locally. Your personal information is never uploaded.                                                                                                                                                                                          |
+Anhe Player supports LX `.js` plugin files and http(s) plugin links ending in `.js`.
 
-**Current plugin capabilities**: the built-in LX Music plugin handles playback URL parsing and multi-quality switching (low / standard / high / super). Search, playlists, lyrics, and other content features continue to come from the app's existing capabilities or other available plugins.
+The built-in plugin is [`changqing_chajian.js`](./changqing_chajian.js) in the repository root. It is loaded on startup as an LX plugin. Sources declared by the plugin are adapted into playback parser sources and can be used for source redirect.
 
----
-
-## 🔌 Plugins
-
-This branch uses LX Music plugins for playback parsing and no longer runs the old MusicFree-specific plugin execution path. The root-level `changqing_chajian.js` file is loaded as a built-in LX Music plugin on startup, and each declared source appears as a playback parser that can be selected for source redirect.
-
-### Built-In LX Sources
+Built-in parser sources:
 
 - `kg音乐`
 - `tx音乐`
@@ -66,166 +54,92 @@ This branch uses LX Music plugins for playback parsing and no longer runs the ol
 - `kw音乐`
 - `mg音乐`
 
-The install dialog now accepts LX Music `.js` plugin files or http(s) links ending with `.js`.
+Plugin capability summary:
 
-### Plugin Capabilities
-
-```
-Play   ─── LX musicUrl parsing · Multi-quality switching · Source redirect
-Sources ─ Kugou / QQ Music / NetEase Cloud Music / Kuwo / Migu
-Install ─ Local .js · Remote .js
+```text
+Playback parsing    LX musicUrl parsing, multi-quality switching, source redirect
+Sources             Kugou, QQ Music, NetEase Cloud Music, Kuwo, Migu
+Install             Local .js file, remote .js link
 ```
 
-### Plugin Sandbox
+## Theme Packs
 
-LX Music plugins run in a secure sandbox through `globalThis.lx`: they register `request` handlers and declare available sources through the `inited` event. The app adapts each source into a `getMediaSource` playback parser.
+Anhe Player supports theme packs for UI customization. The app includes light and pure black themes.
 
----
+A theme pack can be a folder or a `.mftheme` archive:
 
-## 🎨 Theme Packs
-
-安禾播放器 supports full UI customization through theme packs. Two themes are built in: **Light** and **Pure Black (AMOLED)**.
-
-### Theme Pack Structure
-
-A theme pack is a folder (or `.mftheme` archive) containing the following files:
-
-```
+```text
 my-theme/
-├── config.json      # Theme configuration (required)
-├── index.css        # Style definitions (required)
-├── preview.png      # Preview image (optional)
-└── iframes/         # iframe backgrounds (optional)
+├── config.json
+├── index.css
+├── preview.png
+└── iframes/
     └── app.html
 ```
 
-### config.json
+Example `config.json`:
 
 ```jsonc
 {
-    "name": "Theme Name", // Required
-    "preview": "#000000", // Preview color or image path
+    "name": "Theme name",
+    "preview": "#000000",
     "description": "Theme description",
     "author": "Author",
-    "authorUrl": "https://...",
+    "authorUrl": "https://example.com",
     "version": "1.0.0",
-    "srcUrl": "https://...", // Remote update URL
-    "thumb": "@/thumb.png", // Thumbnail
-    "blurHash": "LEHV6nWB2yk8pyo...", // Loading placeholder (BlurHash)
+    "srcUrl": "https://example.com/theme.mftheme",
+    "thumb": "@/thumb.png",
+    "blurHash": "LEHV6nWB2yk8pyo...",
     "iframe": {
-        "app": "@/iframes/app.html", // Full app background
+        "app": "@/iframes/app.html",
     },
 }
 ```
 
-> Use `@/` in paths to reference the theme pack root directory.
+Use `@/` to reference the theme pack root directory. For the full list of supported theme variables, see the built-in light theme:
 
-### index.css — Semantic CSS Variable System
+[`res/builtin-themes/light/index.css`](./res/builtin-themes/light/index.css)
 
-The new version adopts a **semantic CSS variable** design, organized into six categories by visual purpose. Override these variables in `index.css` to define your theme:
+## Development
 
-|    Category    |       Prefix       | Purpose                            | Examples                                           |
-| :------------: | :----------------: | ---------------------------------- | -------------------------------------------------- |
-| **Background** |   `--color-bg-*`   | Page, sidebar, modal backgrounds   | `--color-bg-base`, `--color-bg-sidebar`            |
-|    **Fill**    |  `--color-fill-*`  | Buttons, interactive element fills | `--color-fill-brand`, `--color-fill-neutral-hover` |
-|    **Text**    |  `--color-text-*`  | Text colors at various levels      | `--color-text-primary`, `--color-text-secondary`   |
-|   **Border**   | `--color-border-*` | Dividers, borders                  | `--color-border-default`, `--color-border-subtle`  |
-|   **Status**   | `--color-status-*` | Info / Warning / Danger / Success  | `--color-status-danger-text`                       |
-|   **Shadow**   |    `--shadow-*`    | Elevation shadows                  | `--shadow-sm`, `--shadow-lg`                       |
-
-> For the full list of variables, refer to the built-in theme [`res/builtin-themes/light/index.css`](./res/builtin-themes/light/index.css).
-
-### iframe Backgrounds
-
-Use the `iframe.app` field in `config.json` to set any HTML page as the app background, enabling particle effects, animations, and other visuals that pure CSS cannot achieve. Both local HTML files and remote URLs are supported.
-
-### Theme Pack Examples
-
-Example repository: https://github.com/maotoumao/MusicFreeThemePacks
-
----
-
-## 🛠️ Getting Started
-
-### Prerequisites
+### Requirements
 
 | Dependency | Version |
-| :--------: | :-----: |
-|  Node.js   |  >= 18  |
-|    pnpm    | latest  |
+| ---------- | ------- |
+| Node.js    | 22      |
+| pnpm       | 9       |
 
 ### Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/maotoumao/AnhePlayerDesktop.git
-cd AnhePlayerDesktop
-
-# Install dependencies
+git clone https://github.com/raclen/AnhePlayer.git
+cd AnhePlayer
 pnpm install
-
-# Start the app
 pnpm start
-
-# Development mode (with Electron DevTools)
-pnpm run dev
 ```
 
-### Available Commands
+### Commands
 
-|      Command      | Description      |
-| :---------------: | ---------------- |
-|   `pnpm start`    | Launch the app   |
-|  `pnpm run dev`   | Development mode |
-|  `pnpm run make`  | Build installers |
-|  `pnpm run lint`  | Run linter       |
-| `pnpm run format` | Format code      |
+| Command            | Description                                        |
+| ------------------ | -------------------------------------------------- |
+| `pnpm start`       | Start the app                                      |
+| `pnpm run dev`     | Start development mode                             |
+| `pnpm run package` | Package the app directory for the current platform |
+| `pnpm run make`    | Build installers for the current platform          |
+| `pnpm run lint`    | Run lint checks                                    |
+| `pnpm run format`  | Format code                                        |
 
----
+## Release
 
-## 🤝 Contributing
+This project uses GitHub Actions to build release packages:
 
-Contributions are welcome! Please read the [Contributing Guide](./CONTRIBUTING.md) for development guidelines and submission process.
+- [`Build`](./.github/workflows/build.yml): builds packages and uploads Actions artifacts
+- [`Release`](./.github/workflows/release.yml): downloads artifacts from a selected Build run and creates a GitHub Release
 
----
+## Contributing
 
-## � Support This Project
+Issues and pull requests are welcome. Please read the [Contributing Guide](./CONTRIBUTING.md) before starting development.
 
-If you enjoy this project or would like to see it maintained, you can support it by:
+## License
 
-1. ⭐ Starring this repo and sharing it with others
-2. Following the WeChat channel【一只猫头猫】for updates
-
-<img src="./src/assets/imgs/wechat_channel.jpg" height="160px" title="WeChat Channel" />
-
----
-
-## 📸 Screenshots
-
-#### Home
-
-![Home](./.imgs/screenshot-home.png)
-
-#### Search
-
-![Search](./.imgs/screenshot-search.png)
-
-#### Plugin Manager
-
-![Plugin Manager](./.imgs/screenshot-plugin.png)
-
-#### Themes
-
-![Themes](./.imgs/screenshot-theme.png)
-
-#### Settings
-
-![Settings](./.imgs/screenshot-settings.png)
-
-#### Mini Mode
-
-<div align="center">
-
-![Mini Mode](./.imgs/screenshot-minimode.png)
-
-</div>
+This project is open-sourced under the [AGPL-3.0-only](./LICENSE) license. Please comply with the license when using, modifying, distributing, or republishing this project.

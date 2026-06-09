@@ -40,8 +40,8 @@ Thank you for your interest in contributing to 安禾播放器! Below are the gu
 ### 快速启动 | Quick Start
 
 ```bash
-git clone https://github.com/maotoumao/AnhePlayerDesktop.git
-cd AnhePlayerDesktop
+git clone https://github.com/raclen/AnhePlayer.git
+cd AnhePlayer
 pnpm install
 pnpm run dev
 ```
@@ -60,8 +60,8 @@ pnpm run dev
 
 ```bash
 # Fork 仓库后克隆你的 fork
-git clone https://github.com/<your-username>/AnhePlayerDesktop.git
-cd AnhePlayerDesktop
+git clone https://github.com/<your-username>/AnhePlayer.git
+cd AnhePlayer
 pnpm install
 ```
 

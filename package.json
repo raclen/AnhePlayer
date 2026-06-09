@@ -25,13 +25,13 @@
         "electron",
         "plugin"
     ],
-    "homepage": "https://musicfree.catcat.work",
+    "homepage": "https://github.com/raclen/AnhePlayer",
     "repository": {
         "type": "git",
-        "url": "https://github.com/maotoumao/AnhePlayerDesktop.git"
+        "url": "https://github.com/raclen/AnhePlayer.git"
     },
     "bugs": {
-        "url": "https://github.com/maotoumao/AnhePlayerDesktop/issues"
+        "url": "https://github.com/raclen/AnhePlayer/issues"
     },
     "author": {
         "name": "maotoumao",

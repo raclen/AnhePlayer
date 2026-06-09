@@ -489,7 +489,7 @@
             "contact_author_title": "Contact Author",
             "contact_author_subtitle": "Follow on these platforms for latest updates",
             "author_label": "Author",
-            "author_name": "maotoumao",
+            "author_name": "raclen",
             "xiaohongshu": "Xiaohongshu",
             "wechat_alt": "WeChat Official Account: upup-fun",
             "wechat_hint": "Search for upup-fun on WeChat"
@@ -520,7 +520,7 @@
         "install_theme_fail": "Failed to install theme: {{reason}}",
         "uninstall_theme_success": "Successfully uninstalled theme {{name}}~",
         "uninstall_theme_fail": "Failed to uninstall theme: {{reason}}",
-        "how_to_submit_new_theme": "💡How to submit a new theme: The themes in the theme marketplace are synchronized with the <Github>MusicFreeThemePacks</Github> repository. If you need to submit a new theme, please make a pull request directly.",
+        "how_to_submit_new_theme": "💡How to submit a new theme: Please submit theme-related pull requests to the AnhePlayer repository.",
         "load_remote_theme_error": "An error occurred..."
     },
     "migration": {

@@ -6,7 +6,7 @@
 #define MyAppVersion "0.0.0-alpha.0"
 #endif
 #define MyAppPublisher "maotoumao"
-#define MyAppURL "https://musicfree.catcat.work"
+#define MyAppURL "https://github.com/raclen/AnhePlayer"
 #ifndef MyAppExeName
 #define MyAppExeName "anhe-player.exe"
 #endif
