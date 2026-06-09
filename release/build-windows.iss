@@ -7,7 +7,9 @@
 #endif
 #define MyAppPublisher "maotoumao"
 #define MyAppURL "https://musicfree.catcat.work"
+#ifndef MyAppExeName
 #define MyAppExeName "anhe-player.exe"
+#endif
 #ifndef MyAppId
 #define MyAppId
 #endif

@@ -38,10 +38,26 @@ jobs:
                   $version = node -p "require('./package.json').version"
                   echo "VERSION=$version" >> $env:GITHUB_ENV
             - run: pnpm run package
+            - name: Detect packaged executable
+              run: |
+                  $packageDir = "./out/安禾播放器-win32-x64"
+                  $preferredExe = Join-Path $packageDir "anhe-player.exe"
+                  if (Test-Path $preferredExe) {
+                    $exeName = "anhe-player.exe"
+                  } else {
+                    $exe = Get-ChildItem -Path $packageDir -Filter "*.exe" -File | Select-Object -First 1
+                    if (-not $exe) {
+                      Write-Error "No packaged .exe found in $packageDir"
+                      exit 1
+                    }
+                    $exeName = $exe.Name
+                  }
+                  Write-Host "Packaged executable: $exeName"
+                  echo "WINDOWS_EXE_NAME=$exeName" >> $env:GITHUB_ENV
             - uses: maotoumao/inno-setup-action-cli@main
               with:
                   filepath: ./release/build-windows.iss
-                  variables: /DMyAppVersion=${{ env.VERSION }} /DMyAppId=${{ secrets.MYAPPID }}
+                  variables: /DMyAppVersion=${{ env.VERSION }} /DMyAppId=${{ secrets.MYAPPID }} /DMyAppExeName="${{ env.WINDOWS_EXE_NAME }}"
             - name: Rename setup file
               run: |
                   Rename-Item -Path "./out/AnhePlayerSetup.exe" -NewName "AnhePlayer-${{ env.VERSION }}-win32-x64-setup.exe"
@@ -90,10 +106,26 @@ jobs:
             - name: Install Electron 22
               run: pnpm add electron@22 --save-dev
             - run: pnpm run package
+            - name: Detect packaged executable
+              run: |
+                  $packageDir = "./out/安禾播放器-win32-x64"
+                  $preferredExe = Join-Path $packageDir "anhe-player.exe"
+                  if (Test-Path $preferredExe) {
+                    $exeName = "anhe-player.exe"
+                  } else {
+                    $exe = Get-ChildItem -Path $packageDir -Filter "*.exe" -File | Select-Object -First 1
+                    if (-not $exe) {
+                      Write-Error "No packaged .exe found in $packageDir"
+                      exit 1
+                    }
+                    $exeName = $exe.Name
+                  }
+                  Write-Host "Packaged executable: $exeName"
+                  echo "WINDOWS_EXE_NAME=$exeName" >> $env:GITHUB_ENV
             - uses: maotoumao/inno-setup-action-cli@main
               with:
                   filepath: ./release/build-windows.iss
-                  variables: /DMyAppVersion=${{ env.VERSION }} /DMyAppId=${{ secrets.MYAPPID }}
+                  variables: /DMyAppVersion=${{ env.VERSION }} /DMyAppId=${{ secrets.MYAPPID }} /DMyAppExeName="${{ env.WINDOWS_EXE_NAME }}"
             - name: Rename setup file
               run: |
                   Rename-Item -Path "./out/AnhePlayerSetup.exe" -NewName "AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-setup.exe"
