@@ -120,10 +120,12 @@
 
 ### 环境准备
 
-1. 安装 Node.js (推荐 LTS 版本)
+1. 安装 Node.js 22.x（必须使用 22.x；可通过 `.nvmrc` 切换到已验证的 22.22.3）
 2. 安装 pnpm: `npm install -g pnpm`
 3. 克隆项目并进入目录
 4. 安装依赖: `pnpm install`
+
+如果使用 fnm/nvm，进入项目后先运行 `fnm use` 或 `nvm use`。不要使用 Node 24 打包：当前 Electron Forge / Electron Packager 组合在 Node 24 下可能提前结束且不生成 `out/` 目录。
 
 ### 开发模式运行
 
@@ -192,6 +194,7 @@ pnpm run make
 ### 注意事项
 
 - 确保有合适的图标文件 (res/logo.ico for Windows)
+- 打包必须使用 Node.js 22.x；Node 24 下可能出现命令返回成功但没有产物的情况
 - 打包前确保所有依赖正确安装
 - 对于生产构建，使用 `NODE_ENV=production`
 

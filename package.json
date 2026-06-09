@@ -38,6 +38,10 @@
         "email": "lhx_xjtu@163.com"
     },
     "license": "AGPL-3.0-only",
+    "engines": {
+        "node": ">=22 <23",
+        "pnpm": ">=9 <10"
+    },
     "pnpm": {
         "onlyBuiltDependencies": [
             "electron",
