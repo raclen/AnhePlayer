@@ -36,12 +36,14 @@ const config: ForgeConfig = {
         new MakerDeb({
             options: {
                 bin: 'anhe-player',
+                icon: path.resolve(__dirname, 'res/logo-linux.png'),
                 mimeType: ['x-scheme-handler/anheplayer'],
             },
         }),
         new MakerRpm({
             options: {
                 bin: 'anhe-player',
+                icon: path.resolve(__dirname, 'res/logo-linux.png'),
             },
         }),
     ],
