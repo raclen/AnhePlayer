@@ -1,9 +1,9 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "changeLog": [
-    "补全 wy/kw/mg 音源搜索适配与结果字段映射",
-    "修复多音源歌曲播放、歌词与封面获取",
-    "更新播放器侧边栏品牌显示为 Anhe"
+    "增加歌曲播放失败时的处理逻辑，减少异常状态对连续播放的影响",
+    "新增歌单导入能力，方便从外部数据快速恢复或迁移歌单",
+    "优化相关提示文案与类型定义"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"
