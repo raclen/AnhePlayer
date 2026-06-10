@@ -23,7 +23,7 @@ const config: ForgeConfig = {
         extraResource: [path.resolve(__dirname, 'res')],
         protocols: [
             {
-                name: '安禾播放器',
+                name: 'AnhePlayer',
                 schemes: ['anheplayer'],
             },
         ],

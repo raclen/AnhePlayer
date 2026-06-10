@@ -1,6 +1,6 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <title>安禾播放器 Logo</title>
-  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  <title>AnhePlayer Logo</title>
+  <rect x="32" y="32" width="960" height="960" rx="180" fill="#FFFFFF" stroke="#E8EEF5" stroke-width="18"/>
   <defs>
     <linearGradient id="hMark" x1="248" y1="164" x2="776" y2="860" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#20A7FF"/>

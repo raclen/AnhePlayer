@@ -1,9 +1,11 @@
 {
   "version": "1.0.6",
   "changeLog": [
+    "应用系统显示名称统一为 AnhePlayer，避免 Ubuntu 桌面环境乱码",
+    "Logo 白底增加圆角，并同步更新各平台图标资源",
     "修复 Ubuntu 桌面安装后显示默认圆形图标的问题",
-    "为 Linux deb/rpm 包显式指定安禾播放器 H 字母桌面图标",
-    "补齐 1024px Linux 桌面图标资源"
+    "为 Linux deb/rpm 包显式指定 AnhePlayer H 字母桌面图标",
+    "WebDAV 备份目录统一调整为 /AnhePlayer"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"

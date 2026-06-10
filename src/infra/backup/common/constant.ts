@@ -2,7 +2,7 @@
 export const CONTEXT_BRIDGE_KEY = '@infra/backup';
 
 /** WebDAV 固定远端备份路径 */
-export const WEBDAV_BACKUP_PATH = '/安禾播放器/AnhePlayerBackup.json';
+export const WEBDAV_BACKUP_PATH = '/AnhePlayer/AnhePlayerBackup.json';
 
 /** IPC 通道 */
 export const IPC = {

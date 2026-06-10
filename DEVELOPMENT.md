@@ -1,8 +1,8 @@
-# 安禾播放器 项目分析与开发指南
+# AnhePlayer 项目分析与开发指南
 
 ## 项目概述
 
-安禾播放器 是一个基于 Electron 的插件化音乐播放器桌面应用。该项目使用 TypeScript 开发，前端采用 React 框架，通过 Webpack 进行打包构建。
+AnhePlayer 是一个基于 Electron 的插件化音乐播放器桌面应用。该项目使用 TypeScript 开发，前端采用 React 框架，通过 Webpack 进行打包构建。
 
 ## 项目结构分析
 
@@ -171,7 +171,7 @@ import { MakerSquirrel } from '@electron-forge/maker-squirrel';
 
 // 在 makers 数组中添加:
 new MakerSquirrel({
-    name: '安禾播放器',
+    name: 'AnhePlayer',
     exe: 'AnhePlayer.exe',
     setupExe: 'AnhePlayerSetup.exe',
     setupIcon: path.resolve(__dirname, 'res/logo.ico'),

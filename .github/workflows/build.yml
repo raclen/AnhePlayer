@@ -40,7 +40,7 @@ jobs:
             - run: pnpm run package
             - name: Prepare Inno Setup package directory
               run: |
-                  $packageDir = "./out/安禾播放器-win32-x64"
+                  $packageDir = "./out/AnhePlayer-win32-x64"
                   $innoPackageDir = "./out/anhe-player-win32-x64"
                   $preferredExe = Join-Path $packageDir "anhe-player.exe"
                   if (Test-Path $preferredExe) {
@@ -67,12 +67,12 @@ jobs:
                   Rename-Item -Path "./out/AnhePlayerSetup.exe" -NewName "AnhePlayer-${{ env.VERSION }}-win32-x64-setup.exe"
             - name: Generate portable
               run: |
-                  $packageDir = "./out/安禾播放器-win32-x64"
+                  $packageDir = "./out/AnhePlayer-win32-x64"
                   New-Item -ItemType Directory -Path "$packageDir/portable" -Force
                   New-Item -ItemType File -Path "$packageDir/portable/.portable" -Force
             - name: Archive portable
               run: |
-                  Compress-Archive -Path "./out/安禾播放器-win32-x64/*" -DestinationPath "./out/AnhePlayer-${{ env.VERSION }}-win32-x64-portable.zip"
+                  Compress-Archive -Path "./out/AnhePlayer-win32-x64/*" -DestinationPath "./out/AnhePlayer-${{ env.VERSION }}-win32-x64-portable.zip"
             - uses: actions/upload-artifact@v6
               with:
                   name: AnhePlayer-${{ env.VERSION }}-win32-x64-setup
@@ -112,7 +112,7 @@ jobs:
             - run: pnpm run package
             - name: Prepare Inno Setup package directory
               run: |
-                  $packageDir = "./out/安禾播放器-win32-x64"
+                  $packageDir = "./out/AnhePlayer-win32-x64"
                   $innoPackageDir = "./out/anhe-player-win32-x64"
                   $preferredExe = Join-Path $packageDir "anhe-player.exe"
                   if (Test-Path $preferredExe) {
@@ -139,12 +139,12 @@ jobs:
                   Rename-Item -Path "./out/AnhePlayerSetup.exe" -NewName "AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-setup.exe"
             - name: Generate portable
               run: |
-                  $packageDir = "./out/安禾播放器-win32-x64"
+                  $packageDir = "./out/AnhePlayer-win32-x64"
                   New-Item -ItemType Directory -Path "$packageDir/portable" -Force
                   New-Item -ItemType File -Path "$packageDir/portable/.portable" -Force
             - name: Archive portable
               run: |
-                  Compress-Archive -Path "./out/安禾播放器-win32-x64/*" -DestinationPath "./out/AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-portable.zip"
+                  Compress-Archive -Path "./out/AnhePlayer-win32-x64/*" -DestinationPath "./out/AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-portable.zip"
             - uses: actions/upload-artifact@v6
               with:
                   name: AnhePlayer-${{ env.VERSION }}-win32-x64-legacy-setup

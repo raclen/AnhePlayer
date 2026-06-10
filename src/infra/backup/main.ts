@@ -114,9 +114,9 @@ class BackupManager {
                 const json = JSON.stringify(data);
 
                 // 确保目录存在
-                const dirExists = await client.exists('/安禾播放器');
+                const dirExists = await client.exists('/AnhePlayer');
                 if (!dirExists) {
-                    await client.createDirectory('/安禾播放器');
+                    await client.createDirectory('/AnhePlayer');
                 }
 
                 await client.putFileContents(WEBDAV_BACKUP_PATH, json, {

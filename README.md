@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="./res/logo.svg" width="96" height="96" alt="安禾播放器 Logo" />
+<img src="./res/logo.svg" width="96" height="96" alt="AnhePlayer Logo" />
 
-# 安禾播放器
+# AnhePlayer
 
 一款跨平台、可定制、支持插件扩展的桌面音乐播放器。
 
@@ -16,9 +16,8 @@
 
 ## 简介
 
-安禾播放器是一个基于 Electron 的桌面音乐播放器，支持 Windows、macOS 和 Linux。它专注于本地数据管理、外部插件音源解析和界面定制，不内置广告，也不会上传你的个人数据。
+AnhePlayer 是一个基于 Electron 的桌面音乐播放器，支持 Windows、macOS 和 Linux。它专注于本地数据管理、外部插件音源解析和界面定制，不内置广告，也不会上传你的个人数据。
 <img width="1162" height="860" alt="image" src="https://github.com/user-attachments/assets/f2f6a069-229e-414a-9223-f4f9a9ad4ffc" />
-
 
 ## 下载
 
@@ -50,7 +49,7 @@
 
 ## 插件
 
-安禾播放器默认不内置音源解析插件。你可以在插件管理中安装洛雪 `.js` 插件文件，或添加以 `.js` 结尾的 http(s) 插件链接。
+AnhePlayer 默认不内置音源解析插件。你可以在插件管理中安装洛雪 `.js` 插件文件，或添加以 `.js` 结尾的 http(s) 插件链接。
 
 插件声明的 source 会被适配为播放器中的播放解析源，可用于播放解析、多音质切换和音源重定向。
 
@@ -63,7 +62,7 @@
 
 ## 主题包
 
-安禾播放器支持通过主题包自定义界面外观。内置主题包括浅色主题和纯黑主题。
+AnhePlayer 支持通过主题包自定义界面外观。内置主题包括浅色主题和纯黑主题。
 
 主题包可以是一个文件夹，也可以是 `.mftheme` 压缩包：
 

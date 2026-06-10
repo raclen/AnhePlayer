@@ -1,8 +1,8 @@
 # 贡献指南 | Contributing Guide
 
-感谢你有兴趣为 安禾播放器 贡献代码！以下是参与贡献的流程和规范。
+感谢你有兴趣为 AnhePlayer 贡献代码！以下是参与贡献的流程和规范。
 
-Thank you for your interest in contributing to 安禾播放器! Below are the guidelines and workflow for contributing.
+Thank you for your interest in contributing to AnhePlayer! Below are the guidelines and workflow for contributing.
 
 ---
 
@@ -20,10 +20,10 @@ Thank you for your interest in contributing to 安禾播放器! Below are the gu
 ## 📝 行为准则 | Code of Conduct
 
 - 尊重所有参与者，保持友善和建设性的讨论
-- 不要提交包含具体音源的代码——安禾播放器 仅是播放器，音源通过插件提供
+- 不要提交包含具体音源的代码——AnhePlayer 仅是播放器，音源通过插件提供
 - 遵守 AGPL 3.0 协议
 
-> Be respectful to all participants. Do not submit code containing specific music sources — 安禾播放器 is a player only; sources are provided via plugins. Follow the AGPL 3.0 license.
+> Be respectful to all participants. Do not submit code containing specific music sources — AnhePlayer is a player only; sources are provided via plugins. Follow the AGPL 3.0 license.
 
 ---
 

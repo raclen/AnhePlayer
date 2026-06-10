@@ -205,7 +205,7 @@ class AppTray {
             }`;
             this.tray.setToolTip(fullName);
         } else {
-            this.tray.setToolTip('安禾播放器');
+            this.tray.setToolTip('AnhePlayer');
         }
     }
 
