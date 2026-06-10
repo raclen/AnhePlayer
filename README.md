@@ -17,6 +17,8 @@
 ## 简介
 
 安禾播放器是一个基于 Electron 的桌面音乐播放器，支持 Windows、macOS 和 Linux。它专注于本地数据管理、外部插件音源解析和界面定制，不内置广告，也不会上传你的个人数据。
+<img width="1162" height="860" alt="image" src="https://github.com/user-attachments/assets/f2f6a069-229e-414a-9223-f4f9a9ad4ffc" />
+
 
 ## 下载
 
