@@ -28,7 +28,7 @@ interface _IAppConfig {
     /** 双击音乐列表时 */
     'playMusic.clickMusicList': 'normal' | 'replace';
     /** 播放失败时 */
-    'playMusic.playError': 'pause' | 'skip';
+    'playMusic.playError': 'pause' | 'skip' | 'retry_with_source';
     /** 输出设备 */
     'playMusic.audioOutputDevice': IAudioOutputDevice | null;
     /** 设备变化时 */

@@ -9,6 +9,7 @@
 import vm from 'vm';
 import crypto from 'crypto';
 import axios from 'axios';
+import https from 'https';
 
 /** 计算代码的 SHA256 哈希 */
 export function computeHash(code: string): string {
@@ -72,6 +73,7 @@ const NETEASE_HEADERS = {
     Referer: 'https://music.163.com/',
     'User-Agent': BROWSER_USER_AGENT,
 };
+const KUGOU_HTTPS_AGENT = new https.Agent({ rejectUnauthorized: false });
 
 type ILxRequestHandler = (payload: {
     source: string;
@@ -103,6 +105,7 @@ type ILxLyricGetter = (musicInfo: Record<string, any>) => Promise<ILyric.ILyricS
 type ILxMusicInfoGetter = (
     musicInfo: Record<string, any>,
 ) => Promise<Partial<IMusic.IMusicItem> | null>;
+type ILxMusicSheetImporter = (urlLike: string, platform: string) => Promise<IMusic.IMusicItem[]>;
 type ILxAlbumInfoGetter = (
     albumItem: IAlbum.IAlbumItem,
     page: number,
@@ -149,6 +152,12 @@ type ILxMusicSheetInfoGetter = (
     page: number,
     platform: string,
 ) => Promise<ILxSheetInfoResult | null>;
+
+type IParsedSheetLink = {
+    id: string;
+    url?: string;
+    collection?: boolean;
+};
 
 function readPluginHeader(code: string): Record<string, string> {
     const match = code.match(/\/\*\*([\s\S]*?)\*\//);
@@ -338,6 +347,49 @@ function cleanSearchText(value: unknown): string {
         .trim();
 }
 
+function extractFirstUrl(value: string): string | null {
+    const match = value.match(/https?:\/\/[^\s"'<>，。；、]+/i);
+    return match?.[0] ?? null;
+}
+
+function parseNumericInput(value: string): string | null {
+    const trimmed = value.trim();
+    return /^\d{4,}$/.test(trimmed) ? trimmed : null;
+}
+
+async function resolveShareUrl(urlLike: string): Promise<string> {
+    const firstUrl = extractFirstUrl(urlLike);
+    if (!firstUrl) return urlLike.trim();
+
+    try {
+        const resp = await axios.get(firstUrl, {
+            headers: {
+                'User-Agent': BROWSER_USER_AGENT,
+            },
+            timeout: 10000,
+            maxRedirects: 5,
+            responseType: 'text',
+            validateStatus: (status) => status >= 200 && status < 400,
+        });
+        return resp.request?.res?.responseUrl ?? firstUrl;
+    } catch {
+        return firstUrl;
+    }
+}
+
+function getUrlParam(urlLike: string, names: string[]): string | null {
+    try {
+        const parsed = new URL(urlLike);
+        for (const name of names) {
+            const value = parsed.searchParams.get(name) ?? parsed.hash.match(new RegExp(`[?&]${name}=([^&]+)`))?.[1];
+            if (value) return decodeURIComponent(value);
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
 function decodeTextEntities(value: unknown): string | undefined {
     if (typeof value !== 'string') return undefined;
 
@@ -441,6 +493,78 @@ function mapNeteaseSongInfo(
         raw: song,
         songId: song?.id,
         songmid: song?.id,
+    };
+}
+
+function splitKugouFilename(value: unknown): { artist?: string; title?: string } {
+    const text = cleanSearchText(value);
+    const match = text.match(/^(.+?)\s+-\s+(.+)$/);
+    if (!match) return { title: text };
+    return {
+        artist: match[1],
+        title: match[2],
+    };
+}
+
+function mapTencentSongInfo(item: any, platform: string): IMusic.IMusicItem {
+    return {
+        id: String(item.songmid ?? item.songid ?? item.media_mid ?? item.strMediaMid),
+        platform,
+        title: cleanSearchText(item.songname ?? item.name),
+        artist: normalizeArtistNames(item.singer),
+        album: cleanSearchText(item.albumname ?? item.album?.name),
+        artwork: item.albummid
+            ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg`
+            : undefined,
+        duration: normalizeDurationSeconds(item.interval),
+        raw: item,
+        songmid: item.songmid,
+        media_mid: item.media_mid,
+        strMediaMid: item.strMediaMid,
+    };
+}
+
+function mapKugouSongInfo(item: any, platform: string): IMusic.IMusicItem {
+    const parsed = splitKugouFilename(item.filename);
+    const title = cleanSearchText(
+        item.songname ?? item.songname_original ?? item.audio_name ?? parsed.title,
+    );
+    const artist = cleanSearchText(
+        item.singername ?? item.author_name ?? normalizeArtistNames(item.authors) ?? parsed.artist,
+    );
+    const artwork = item.trans_param?.union_cover
+        ? String(item.trans_param.union_cover).replace('{size}', '300')
+        : undefined;
+
+    return {
+        id: String(item.hash ?? item.HASH ?? item.audio_id ?? item.album_audio_id),
+        platform,
+        title,
+        artist: artist || parsed.artist || '未知歌手',
+        album: cleanSearchText(item.album_name ?? item.albumname ?? item.remark),
+        artwork,
+        duration: normalizeDurationSeconds(item.duration ?? item.timelength),
+        raw: item,
+        hash: item.hash ?? item.HASH,
+    };
+}
+
+function mapKuwoSongInfo(item: any, platform: string): IMusic.IMusicItem {
+    const rid = String(item.DC_TARGETID ?? item.id ?? item.MUSICRID ?? '').replace(/^MUSIC_/, '');
+    return {
+        id: rid,
+        platform,
+        title: cleanSearchText(item.SONGNAME ?? item.NAME ?? item.name),
+        artist: cleanSearchText(item.ARTIST ?? item.FARTIST ?? item.artist),
+        album: cleanSearchText(item.ALBUM ?? item.album),
+        artwork: buildKuwoArtwork(item.web_albumpic_short ?? item.albumpic),
+        duration: normalizeDurationSeconds(item.DURATION ?? item.duration),
+        raw: item,
+        rid,
+        songmid: rid,
+        musicrid: item.MUSICRID,
+        MUSICRID: item.MUSICRID,
+        DC_TARGETID: item.DC_TARGETID ?? item.id,
     };
 }
 
@@ -744,6 +868,276 @@ async function getNeteaseArtistWorks(
     };
 }
 
+function parseNeteaseSheetLink(urlLike: string): IParsedSheetLink | null {
+    const id =
+        getUrlParam(urlLike, ['id', 'playlistId']) ??
+        urlLike.match(/\/playlist\/(?:detail\/)?(\d+)/i)?.[1] ??
+        parseNumericInput(urlLike);
+    return id ? { id } : null;
+}
+
+function parseTencentSheetLink(urlLike: string): IParsedSheetLink | null {
+    const id =
+        getUrlParam(urlLike, ['disstid', 'id', 'dirid']) ??
+        urlLike.match(/\/playlist\/(\d+)/i)?.[1] ??
+        urlLike.match(/\/n\/ryqq\/playlist\/(\d+)/i)?.[1] ??
+        parseNumericInput(urlLike);
+    return id ? { id } : null;
+}
+
+function parseKuwoSheetLink(urlLike: string): IParsedSheetLink | null {
+    const id =
+        getUrlParam(urlLike, ['pid', 'playlistId', 'id']) ??
+        urlLike.match(/\/playlist(?:_detail)?\/(\d+)/i)?.[1] ??
+        urlLike.match(/\/play_detail\/(\d+)/i)?.[1] ??
+        parseNumericInput(urlLike);
+    return id ? { id } : null;
+}
+
+function parseKugouSheetLink(urlLike: string): IParsedSheetLink | null {
+    const collection =
+        getUrlParam(urlLike, ['global_specialid', 'global_collection_id']) ??
+        urlLike.match(/collection_[\w-]+/i)?.[0];
+    if (collection) {
+        return {
+            id: collection,
+            url: extractFirstUrl(urlLike) ?? urlLike,
+            collection: true,
+        };
+    }
+
+    const id =
+        getUrlParam(urlLike, ['specialid', 'global_collection_id', 'id']) ??
+        urlLike.match(/\/special\/single\/(\d+)\.html/i)?.[1] ??
+        urlLike.match(/\/plist\/list\/(\d+)/i)?.[1] ??
+        urlLike.match(/\/playlist\/(\d+)/i)?.[1] ??
+        parseNumericInput(urlLike);
+    return id ? { id } : null;
+}
+
+function extractKugouCollectionData(html: string): any[] {
+    const marker = html.match(/var\s+data\s*=\s*\[/);
+    if (!marker?.index) return [];
+
+    const start = html.indexOf('[', marker.index);
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < html.length; i += 1) {
+        const ch = html[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch === '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch === '"') {
+            inString = !inString;
+            continue;
+        }
+        if (inString) continue;
+        if (ch === '[') {
+            depth += 1;
+        } else if (ch === ']') {
+            depth -= 1;
+            if (depth === 0) {
+                try {
+                    const parsed = JSON.parse(html.slice(start, i + 1));
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch {
+                    return [];
+                }
+            }
+        }
+    }
+
+    return [];
+}
+
+async function importNeteaseMusicSheet(
+    urlLike: string,
+    platform: string,
+): Promise<IMusic.IMusicItem[]> {
+    const resolved = await resolveShareUrl(urlLike);
+    const parsed = parseNeteaseSheetLink(resolved);
+    if (!parsed?.id) return [];
+
+    const sheet = await fetchNeteasePlaylistInfo(
+        { id: parsed.id, platform, title: '' },
+        1,
+        platform,
+    );
+    if (!sheet?.sheetItem?.raw) return sheet?.musicList ?? [];
+
+    const raw = sheet.sheetItem.raw;
+    const trackIds = Array.isArray(raw.trackIds)
+        ? raw.trackIds.map((item: any) => item?.id).filter(Boolean)
+        : [];
+    if (!trackIds.length) return sheet.musicList ?? [];
+
+    const chunks: unknown[][] = [];
+    for (let i = 0; i < trackIds.length; i += 500) {
+        chunks.push(trackIds.slice(i, i + 500));
+    }
+
+    const musicList: IMusic.IMusicItem[] = [];
+    for (const chunk of chunks) {
+        const detailById = await fetchNeteaseSongDetails(chunk);
+        for (const id of chunk) {
+            const song = detailById.get(String(id));
+            if (song) {
+                musicList.push(mapNeteaseSongInfo(song, platform) as IMusic.IMusicItem);
+            }
+        }
+    }
+
+    return musicList;
+}
+
+async function importTencentMusicSheet(
+    urlLike: string,
+    platform: string,
+): Promise<IMusic.IMusicItem[]> {
+    const resolved = await resolveShareUrl(urlLike);
+    const parsed = parseTencentSheetLink(resolved);
+    if (!parsed?.id) return [];
+
+    const resp = await axios.get('https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg', {
+        params: {
+            type: 1,
+            json: 1,
+            utf8: 1,
+            onlysong: 0,
+            disstid: parsed.id,
+            format: 'json',
+            g_tk: 5381,
+            loginUin: 0,
+            hostUin: 0,
+            inCharset: 'utf8',
+            outCharset: 'utf-8',
+            notice: 0,
+            platform: 'yqq',
+            needNewCode: 0,
+        },
+        headers: {
+            Referer: 'https://y.qq.com/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const list = resp.data?.cdlist?.[0]?.songlist;
+    return Array.isArray(list) ? list.map((item: any) => mapTencentSongInfo(item, platform)) : [];
+}
+
+async function importKuwoMusicSheet(
+    urlLike: string,
+    platform: string,
+): Promise<IMusic.IMusicItem[]> {
+    const resolved = await resolveShareUrl(urlLike);
+    const parsed = parseKuwoSheetLink(resolved);
+    if (!parsed?.id) return [];
+
+    const firstResp = await axios.get('https://nplserver.kuwo.cn/pl.svc', {
+        params: {
+            op: 'getlistinfo',
+            pid: parsed.id,
+            pn: 0,
+            rn: 1,
+            encode: 'utf8',
+            keyset: 'pl2012',
+        },
+        headers: {
+            Referer: 'https://www.kuwo.cn/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const total = Number(firstResp.data?.total ?? 0);
+    const resp = await axios.get('https://nplserver.kuwo.cn/pl.svc', {
+        params: {
+            op: 'getlistinfo',
+            pid: parsed.id,
+            pn: 0,
+            rn: Math.max(total, 500),
+            encode: 'utf8',
+            keyset: 'pl2012',
+        },
+        headers: {
+            Referer: 'https://www.kuwo.cn/',
+            'User-Agent': BROWSER_USER_AGENT,
+        },
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const list = Array.isArray(resp.data?.musiclist) ? resp.data.musiclist : [];
+    return list.map((item: any) => mapKuwoSongInfo(item, platform));
+}
+
+async function importKugouMusicSheet(
+    urlLike: string,
+    platform: string,
+): Promise<IMusic.IMusicItem[]> {
+    const resolved = await resolveShareUrl(urlLike);
+    const parsed = parseKugouSheetLink(resolved);
+    if (!parsed?.id) return [];
+
+    if (parsed.collection) {
+        const url = `https://www.kugou.com/yy/special/single/${parsed.id}.html`;
+        const resp = await axios.get(url, {
+            headers: {
+                Referer: 'https://www.kugou.com/',
+                'User-Agent': BROWSER_USER_AGENT,
+            },
+            timeout: 15000,
+            responseType: 'text',
+        });
+        return extractKugouCollectionData(String(resp.data)).map((item: any) =>
+            mapKugouSongInfo(item, platform),
+        );
+    }
+
+    const pageSize = 200;
+    const musicList: IMusic.IMusicItem[] = [];
+    let page = 1;
+    let total = Infinity;
+
+    while (musicList.length < total && page <= 20) {
+        const resp = await axios.get('https://mobilecdn.kugou.com/api/v3/special/song', {
+            params: {
+                specialid: parsed.id,
+                page,
+                pagesize: pageSize,
+                plat: 0,
+                version: 9108,
+            },
+            headers: {
+                Referer: 'https://www.kugou.com/',
+                'User-Agent': BROWSER_USER_AGENT,
+            },
+            httpsAgent: KUGOU_HTTPS_AGENT,
+            timeout: 15000,
+            responseType: 'json',
+        });
+
+        const data = resp.data?.data ?? {};
+        const list = Array.isArray(data.info) ? data.info : [];
+        total = Number(data.total ?? list.length);
+        if (!list.length) break;
+        musicList.push(...list.map((item: any) => mapKugouSongInfo(item, platform)));
+        page += 1;
+    }
+
+    return musicList;
+}
+
 async function searchTencentMusic(
     query: string,
     page: number,
@@ -767,21 +1161,7 @@ async function searchTencentMusic(
     const list = Array.isArray(song.list) ? song.list : [];
     return {
         isEnd: list.length < LX_SEARCH_PAGE_SIZE || page * LX_SEARCH_PAGE_SIZE >= (song.totalnum ?? 0),
-        data: list.map((item: any) => ({
-            id: String(item.songmid ?? item.songid ?? item.media_mid ?? item.strMediaMid),
-            platform,
-            title: item.songname ?? item.name ?? '',
-            artist: normalizeArtistNames(item.singer),
-            album: item.albumname ?? '',
-            artwork: item.albummid
-                ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg`
-                : undefined,
-            duration: item.interval,
-            raw: item,
-            songmid: item.songmid,
-            media_mid: item.media_mid,
-            strMediaMid: item.strMediaMid,
-        })),
+        data: list.map((item: any) => mapTencentSongInfo(item, platform)),
     };
 }
 
@@ -961,19 +1341,7 @@ async function searchKugouMusic(
     const list = Array.isArray(data.info) ? data.info : [];
     return {
         isEnd: list.length < LX_SEARCH_PAGE_SIZE || page * LX_SEARCH_PAGE_SIZE >= (data.total ?? 0),
-        data: list.map((item: any) => ({
-            id: String(item.hash ?? item.audio_id),
-            platform,
-            title: item.songname ?? item.songname_original ?? '',
-            artist: normalizeArtistNames(item.singername),
-            album: item.album_name ?? '',
-            artwork: item.trans_param?.union_cover
-                ? String(item.trans_param.union_cover).replace('{size}', '300')
-                : undefined,
-            duration: item.duration,
-            raw: item,
-            hash: item.hash,
-        })),
+        data: list.map((item: any) => mapKugouSongInfo(item, platform)),
     };
 }
 
@@ -1013,24 +1381,7 @@ async function searchKuwoMusic(
     const total = Number(resp.data?.TOTAL ?? resp.data?.HIT ?? 0);
     return {
         isEnd: list.length < LX_SEARCH_PAGE_SIZE || currentPage * LX_SEARCH_PAGE_SIZE >= total,
-        data: list.map((item: any) => {
-            const rid = String(item.DC_TARGETID ?? item.MUSICRID ?? '').replace(/^MUSIC_/, '');
-            return {
-                id: rid,
-                platform,
-                title: cleanSearchText(item.SONGNAME ?? item.NAME),
-                artist: cleanSearchText(item.ARTIST ?? item.FARTIST),
-                album: cleanSearchText(item.ALBUM),
-                artwork: buildKuwoArtwork(item.web_albumpic_short),
-                duration: normalizeDurationSeconds(item.DURATION),
-                raw: item,
-                rid,
-                songmid: rid,
-                musicrid: item.MUSICRID,
-                MUSICRID: item.MUSICRID,
-                DC_TARGETID: item.DC_TARGETID,
-            };
-        }),
+        data: list.map((item: any) => mapKuwoSongInfo(item, platform)),
     };
 }
 
@@ -1294,6 +1645,13 @@ const LX_MUSIC_INFO_GETTERS: Record<string, ILxMusicInfoGetter> = {
     wy: getNeteaseMusicInfo,
 };
 
+const LX_MUSIC_SHEET_IMPORTERS: Record<string, ILxMusicSheetImporter> = {
+    tx: importTencentMusicSheet,
+    kg: importKugouMusicSheet,
+    wy: importNeteaseMusicSheet,
+    kw: importKuwoMusicSheet,
+};
+
 const LX_ALBUM_INFO_GETTERS: Record<string, ILxAlbumInfoGetter> = {
     wy: getNeteaseAlbumInfo,
 };
@@ -1540,6 +1898,12 @@ export async function executeLxPluginCode(
                         ...buildLxMusicInfo(musicItem, sourceKey),
                         platform,
                     });
+            }
+
+            const musicSheetImporter = LX_MUSIC_SHEET_IMPORTERS[sourceKey];
+            if (musicSheetImporter) {
+                instance.importMusicSheet = async (urlLike) =>
+                    musicSheetImporter(urlLike, platform);
             }
 
             const albumInfoGetter = LX_ALBUM_INFO_GETTERS[sourceKey];

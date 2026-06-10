@@ -133,6 +133,10 @@ export function PlaybackSection() {
                         value={playError ?? 'skip'}
                         onChange={setPlayError}
                         options={[
+                            {
+                                value: 'retry_with_source',
+                                label: t('settings.playback.retry_with_source'),
+                            },
                             { value: 'skip', label: t('settings.playback.skip_to_next') },
                             { value: 'pause', label: t('settings.playback.pause') },
                         ]}

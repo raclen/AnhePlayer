@@ -357,6 +357,7 @@
             "replace_queue": "替換播放佇列",
             "play_error_label": "播放失敗時",
             "play_error_desc": "當前歌曲無法播放時的行為",
+            "retry_with_source": "換源重試",
             "skip_to_next": "跳到下一首",
             "pause": "暫停播放",
             "output_device_label": "音頻輸出設備",

@@ -115,6 +115,8 @@ class TrackPlayer {
     // 连续播放错误计数
     private consecutiveErrors = 0;
     private readonly MAX_CONSECUTIVE_ERRORS = 3;
+    private sourceRetryMusicKey = '';
+    private sourceRetryTriedHashes = new Set<string>();
 
     // ─── 启动恢复 ───
 
@@ -296,6 +298,7 @@ class TrackPlayer {
             this.audioController.setTrackSource(result, musicItem);
             this.audioController.play();
             this.consecutiveErrors = 0; // 播放成功，重置错误计数
+            this.resetSourceRetryState();
 
             this.setCurrentMusic(musicItem);
             syncKV.set('player.currentQuality', result.quality!);
@@ -324,7 +327,7 @@ class TrackPlayer {
                 .catch(() => {});
         } catch (e) {
             this.audioController.reset();
-            this.handlePlayError(targetSlim, e);
+            await this.handlePlayError(targetSlim, e);
         }
     }
 
@@ -579,7 +582,9 @@ class TrackPlayer {
         });
 
         this.audioController.on('error', (_reason, _detail) => {
-            this.handlePlayError(this.playQueue.getCurrentMusic(), _detail);
+            this.handlePlayError(this.playQueue.getCurrentMusic(), _detail).catch((err) => {
+                console.error('[TrackPlayer] handle play error failed:', err);
+            });
         });
 
         this.audioController.on('volumeChange', (volume) => {
@@ -635,7 +640,16 @@ class TrackPlayer {
         const behavior = appConfig.getConfigByKey('playMusic.playError') ?? 'skip';
 
         if (
-            behavior === 'skip' &&
+            behavior === 'retry_with_source' &&
+            musicItem &&
+            this.consecutiveErrors < this.MAX_CONSECUTIVE_ERRORS
+        ) {
+            const retried = await this.retryWithAlternativeSource(musicItem);
+            if (retried) return;
+        }
+
+        if (
+            (behavior === 'skip' || behavior === 'retry_with_source') &&
             this.playQueue.queue.length > 1 &&
             this.consecutiveErrors < this.MAX_CONSECUTIVE_ERRORS
         ) {
@@ -648,10 +662,216 @@ class TrackPlayer {
             // 安全兜底：连续多次失败，停止播放避免无限循环
             store.set(playerStateAtom, PlayerState.Paused);
             this.consecutiveErrors = 0;
+            this.resetSourceRetryState();
         } else {
             // 单曲队列 / 非 skip 配置，暂停
             store.set(playerStateAtom, PlayerState.Paused);
         }
+    }
+
+    private async retryWithAlternativeSource(musicItem: IMusicItemSlim): Promise<boolean> {
+        if (!this.isCurrentMusic(musicItem)) return false;
+
+        const sourceMusic = await this.getPlayableMusicItem(musicItem);
+        if (!this.isCurrentMusic(musicItem)) return false;
+
+        this.ensureSourceRetryState(musicItem);
+
+        const currentHash = pluginManager.getPluginByPlatform(sourceMusic.platform)?.hash;
+        if (currentHash) {
+            this.sourceRetryTriedHashes.add(currentHash);
+        }
+
+        const candidates = pluginManager
+            .getSortedSupportedPlugin('getMediaSource')
+            .filter((plugin) => !this.sourceRetryTriedHashes.has(plugin.hash));
+
+        if (candidates.length === 0) return false;
+
+        store.set(playerStateAtom, PlayerState.Buffering);
+
+        for (const plugin of candidates) {
+            this.sourceRetryTriedHashes.add(plugin.hash);
+
+            const candidateMusic = await this.resolveAlternativeMusicItem(sourceMusic, plugin);
+            if (!candidateMusic || !this.isCurrentMusic(musicItem)) continue;
+
+            try {
+                const quality: IMusic.IQualityKey = 'standard';
+                const result = await pluginManager.adapters.getMediaSource({
+                    hash: plugin.hash,
+                    musicItem: candidateMusic,
+                    quality,
+                    qualityOrder: QUALITY_KEYS,
+                    qualityFallbackOrder: this.getQualityFallbackOrder(),
+                });
+
+                if (!result?.url || !this.isCurrentMusic(musicItem)) continue;
+
+                const resolvedQuality = result.quality ?? quality;
+                store.set(qualityAtom, resolvedQuality);
+                syncKV.set('player.currentQuality', resolvedQuality);
+                this.audioController.setTrackSource(result, candidateMusic);
+                this.audioController.play();
+                this.consecutiveErrors = 0;
+                return true;
+            } catch {
+                // 单个音源失败时继续尝试下一个已启用音源。
+            }
+        }
+
+        return false;
+    }
+
+    private async getPlayableMusicItem(musicItem: IMusicItemSlim): Promise<IMusic.IMusicItem> {
+        const fullItem =
+            (await musicSheet.getRawMusicItem(musicItem.platform, musicItem.id)) ??
+            this.playQueue.getRawItem(musicItem);
+
+        return fullItem ?? (musicItem as IMusic.IMusicItem);
+    }
+
+    private async resolveAlternativeMusicItem(
+        sourceMusic: IMusic.IMusicItem,
+        plugin: IPlugin.IPluginDelegate,
+    ): Promise<IMusic.IMusicItem | null> {
+        const searched = await this.searchAlternativeMusicItem(sourceMusic, plugin);
+        if (searched) return searched;
+
+        return {
+            ...sourceMusic,
+            platform: plugin.platform,
+        };
+    }
+
+    private async searchAlternativeMusicItem(
+        sourceMusic: IMusic.IMusicItem,
+        plugin: IPlugin.IPluginDelegate,
+    ): Promise<IMusic.IMusicItem | null> {
+        if (!sourceMusic.title?.trim()) return null;
+        if (!plugin.supportedMethod.includes('search')) return null;
+        if (plugin.supportedSearchType && !plugin.supportedSearchType.includes('music'))
+            return null;
+
+        try {
+            const result = await pluginManager.callPluginMethod({
+                hash: plugin.hash,
+                method: 'search',
+                args: [this.buildAlternativeSearchQuery(sourceMusic), 1, 'music'],
+            });
+            const candidates = (result?.data ?? []) as IMusic.IMusicItem[];
+            const best = this.pickBestAlternativeMusicItem(sourceMusic, candidates);
+            if (!best) return null;
+
+            return {
+                ...best,
+                id: String(best.id),
+                platform: plugin.platform,
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    private buildAlternativeSearchQuery(musicItem: IMusic.IMusicItem): string {
+        return [musicItem.title, musicItem.artist].filter(Boolean).join(' ');
+    }
+
+    private pickBestAlternativeMusicItem(
+        sourceMusic: IMusic.IMusicItem,
+        candidates: IMusic.IMusicItem[],
+    ): IMusic.IMusicItem | null {
+        const sourceTitle = this.normalizeCompareText(sourceMusic.title);
+        if (!sourceTitle) return null;
+
+        let best: { item: IMusic.IMusicItem; score: number } | null = null;
+        for (const item of candidates) {
+            const score = this.scoreAlternativeMusicItem(sourceMusic, item);
+            if (!best || score > best.score) {
+                best = { item, score };
+            }
+        }
+
+        return best && best.score >= 6 ? best.item : null;
+    }
+
+    private scoreAlternativeMusicItem(
+        sourceMusic: IMusic.IMusicItem,
+        candidate: IMusic.IMusicItem,
+    ): number {
+        const sourceTitle = this.normalizeCompareText(sourceMusic.title);
+        const candidateTitle = this.normalizeCompareText(candidate.title);
+        if (!sourceTitle || !candidateTitle) return 0;
+
+        let score = 0;
+        if (sourceTitle === candidateTitle) {
+            score += 6;
+        } else if (sourceTitle.includes(candidateTitle) || candidateTitle.includes(sourceTitle)) {
+            score += 4;
+        }
+
+        if (this.hasArtistOverlap(sourceMusic.artist, candidate.artist)) {
+            score += 3;
+        }
+
+        const sourceAlbum = this.normalizeCompareText(sourceMusic.album);
+        const candidateAlbum = this.normalizeCompareText(candidate.album);
+        if (sourceAlbum && candidateAlbum && sourceAlbum === candidateAlbum) {
+            score += 1;
+        }
+
+        if (sourceMusic.duration && candidate.duration) {
+            const diff = Math.abs(sourceMusic.duration - candidate.duration);
+            if (diff <= 3) {
+                score += 2;
+            } else if (diff <= 10) {
+                score += 1;
+            }
+        }
+
+        return score;
+    }
+
+    private hasArtistOverlap(sourceArtist?: string, candidateArtist?: string): boolean {
+        const sourceArtists = this.splitArtists(sourceArtist);
+        const candidateArtists = this.splitArtists(candidateArtist);
+        if (sourceArtists.length === 0 || candidateArtists.length === 0) return false;
+
+        return sourceArtists.some((source) =>
+            candidateArtists.some(
+                (candidate) =>
+                    source === candidate ||
+                    source.includes(candidate) ||
+                    candidate.includes(source),
+            ),
+        );
+    }
+
+    private splitArtists(artist?: string): string[] {
+        return String(artist ?? '')
+            .split(/\/|、|,|，|;|；|&|＆|\s+feat\.?\s+|\s+ft\.?\s+/i)
+            .map((item) => this.normalizeCompareText(item))
+            .filter(Boolean);
+    }
+
+    private normalizeCompareText(value?: string | null): string {
+        return String(value ?? '')
+            .toLowerCase()
+            .replace(/（[^）]*）|\([^)]*\)|【[^】]*】|\[[^\]]*\]/g, '')
+            .replace(/[\s"'`~!@#$%^*_+=|\\:;,.，。！？?、/<>《》“”‘’{}【】()[\]-]/g, '');
+    }
+
+    private ensureSourceRetryState(musicItem: IMedia.IMediaBase): void {
+        const retryKey = `${musicItem.platform}:${musicItem.id}`;
+        if (this.sourceRetryMusicKey !== retryKey) {
+            this.sourceRetryMusicKey = retryKey;
+            this.sourceRetryTriedHashes.clear();
+        }
+    }
+
+    private resetSourceRetryState(): void {
+        this.sourceRetryMusicKey = '';
+        this.sourceRetryTriedHashes.clear();
     }
 
     /**
@@ -670,6 +890,7 @@ class TrackPlayer {
     private clearPlayback(): void {
         this.audioController.reset();
         this.lyricManager.reset();
+        this.resetSourceRetryState();
         store.set(currentMusicAtom, null);
         store.set(playerStateAtom, PlayerState.None);
         this.resetProgress();

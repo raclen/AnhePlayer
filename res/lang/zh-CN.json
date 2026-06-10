@@ -357,6 +357,7 @@
             "replace_queue": "替换播放队列",
             "play_error_label": "播放失败时",
             "play_error_desc": "当前歌曲无法播放时的行为",
+            "retry_with_source": "换源重试",
             "skip_to_next": "跳到下一首",
             "pause": "暂停播放",
             "output_device_label": "音频输出设备",

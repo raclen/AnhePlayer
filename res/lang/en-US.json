@@ -357,6 +357,7 @@
             "replace_queue": "Replace play queue",
             "play_error_label": "When playback fails",
             "play_error_desc": "Behavior when current song cannot play",
+            "retry_with_source": "Retry with another source",
             "skip_to_next": "Skip to next",
             "pause": "Pause playback",
             "output_device_label": "Audio output device",
