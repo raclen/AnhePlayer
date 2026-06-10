@@ -1,39 +1,18 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>安禾播放器 Logo</title>
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
   <defs>
-    <linearGradient id="bg" x1="150" y1="118" x2="870" y2="902" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#141B20"/>
-      <stop offset="1" stop-color="#0B0F12"/>
+    <linearGradient id="hMark" x1="248" y1="164" x2="776" y2="860" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#20A7FF"/>
+      <stop offset="0.58" stop-color="#1677F2"/>
+      <stop offset="1" stop-color="#085EE8"/>
     </linearGradient>
-    <linearGradient id="sail" x1="328" y1="252" x2="682" y2="724" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFF0A4"/>
-      <stop offset="0.54" stop-color="#E0B64E"/>
-      <stop offset="1" stop-color="#B97835"/>
-    </linearGradient>
-    <linearGradient id="sea" x1="246" y1="610" x2="778" y2="714" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#74EADF"/>
-      <stop offset="1" stop-color="#608DFF"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 538) rotate(90) scale(374)">
-      <stop offset="0" stop-color="#E2C159" stop-opacity="0.18"/>
-      <stop offset="0.66" stop-color="#47D6D0" stop-opacity="0.1"/>
-      <stop offset="1" stop-color="#0B0F12" stop-opacity="0"/>
-    </radialGradient>
-    <filter id="shadow" x="150" y="150" width="724" height="724" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="22" stdDeviation="26" flood-color="#000000" flood-opacity="0.34"/>
-    </filter>
+    <clipPath id="hShape">
+      <path d="M320 152C276.922 152 242 186.922 242 230V794C242 837.078 276.922 872 320 872H372C415.078 872 450 837.078 450 794V615H574V794C574 837.078 608.922 872 652 872H704C747.078 872 782 837.078 782 794V230C782 186.922 747.078 152 704 152H652C608.922 152 574 186.922 574 230V409H450V230C450 186.922 415.078 152 372 152H320Z"/>
+    </clipPath>
   </defs>
-
-  <rect width="1024" height="1024" rx="216" fill="#070A0D"/>
-  <rect x="82" y="82" width="860" height="860" rx="180" fill="url(#bg)"/>
-  <rect x="112" y="112" width="800" height="800" rx="152" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="8"/>
-  <circle cx="512" cy="536" r="352" fill="url(#glow)"/>
-
-  <g filter="url(#shadow)" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M512 270V642" stroke="url(#sail)" stroke-width="42"/>
-    <path d="M512 319C448 374 405 451 382 550C425 533 466 515 512 492" stroke="url(#sail)" stroke-width="42"/>
-    <path d="M538 332C615 395 664 480 690 588C634 565 586 538 538 505" stroke="url(#sail)" stroke-width="42"/>
-
-    <path d="M294 648H730C700 704 622 742 512 742C402 742 324 704 294 648Z" stroke="url(#sea)" stroke-width="42"/>
-    <path d="M243 766C294 736 345 736 396 766C447 796 498 796 549 766C600 736 651 736 702 766C730 782 758 789 786 786" stroke="url(#sea)" stroke-width="34" opacity="0.78"/>
+  <g clip-path="url(#hShape)">
+    <path d="M320 152C276.922 152 242 186.922 242 230V794C242 837.078 276.922 872 320 872H372C415.078 872 450 837.078 450 794V615H574V794C574 837.078 608.922 872 652 872H704C747.078 872 782 837.078 782 794V230C782 186.922 747.078 152 704 152H652C608.922 152 574 186.922 574 230V409H450V230C450 186.922 415.078 152 372 152H320Z" fill="url(#hMark)"/>
+    <path d="M196 615C293 556 391 556 488 615C585 674 683 674 828 584V702C683 792 585 792 488 733C391 674 293 674 196 733V615Z" fill="#42C5FF" opacity="0.34"/>
   </g>
 </svg>

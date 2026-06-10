@@ -1,9 +1,9 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.5",
   "changeLog": [
-    "增加歌曲播放失败时的处理逻辑，减少异常状态对连续播放的影响",
-    "新增歌单导入能力，方便从外部数据快速恢复或迁移歌单",
-    "优化相关提示文案与类型定义"
+    "重新设计应用 Logo，采用白底蓝色 H 字母标识",
+    "同步更新 Windows、macOS 与应用内使用的图标资源",
+    "优化品牌识别，使小尺寸图标更清晰"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"
