@@ -64,9 +64,14 @@ const LX_QUALITY_MAP: Record<IMusic.IQualityKey, string> = {
 };
 
 const LX_SEARCH_PAGE_SIZE = 30;
+const NETEASE_PLAYLIST_PAGE_SIZE = 30;
 const BROWSER_USER_AGENT = 'Mozilla/5.0';
 const MOBILE_USER_AGENT =
     'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36';
+const NETEASE_HEADERS = {
+    Referer: 'https://music.163.com/',
+    'User-Agent': BROWSER_USER_AGENT,
+};
 
 type ILxRequestHandler = (payload: {
     source: string;
@@ -85,15 +90,65 @@ interface ILxInitedPayload {
     sources?: Record<string, ILxSourceDefine>;
 }
 
-type ILxMusicSearcher = (
+type ILxSearchResult = {
+    isEnd?: boolean;
+    data: any[];
+};
+type ILxMediaSearcher = (
     query: string,
     page: number,
     platform: string,
-) => Promise<IPlugin.ISearchResult<'music'>>;
+) => Promise<ILxSearchResult>;
 type ILxLyricGetter = (musicInfo: Record<string, any>) => Promise<ILyric.ILyricSource | null>;
 type ILxMusicInfoGetter = (
     musicInfo: Record<string, any>,
 ) => Promise<Partial<IMusic.IMusicItem> | null>;
+type ILxAlbumInfoGetter = (
+    albumItem: IAlbum.IAlbumItem,
+    page: number,
+    platform: string,
+) => Promise<IPlugin.IAlbumInfoResult | null>;
+type ILxArtistWorksGetter = (
+    artistItem: IArtist.IArtistItem,
+    page: number,
+    type: IArtist.ArtistMediaType,
+    platform: string,
+) => Promise<ILxSearchResult>;
+type ILxSheetInfoResult = {
+    isEnd?: boolean;
+    sheetItem?: IMusic.IMusicSheetItem;
+    musicList?: IMusic.IMusicItem[];
+};
+type ILxTopListInfoResult = {
+    isEnd?: boolean;
+    topListItem?: IMusic.IMusicSheetItem;
+    musicList?: IMusic.IMusicItem[];
+};
+type ILxRecommendSheetTagsResult = {
+    pinned?: IMusic.IMusicSheetItem[];
+    data?: IMusic.IMusicSheetGroupItem[];
+};
+type ILxPaginationResponse<T> = {
+    isEnd?: boolean;
+    data: T[];
+};
+type ILxTopListsGetter = (platform: string) => Promise<IMusic.IMusicSheetGroupItem[]>;
+type ILxTopListDetailGetter = (
+    topListItem: IMusic.IMusicSheetItem,
+    page: number,
+    platform: string,
+) => Promise<ILxTopListInfoResult>;
+type ILxRecommendTagsGetter = () => Promise<ILxRecommendSheetTagsResult>;
+type ILxRecommendSheetsGetter = (
+    tag: IMedia.IUnique,
+    page: number,
+    platform: string,
+) => Promise<ILxPaginationResponse<IMusic.IMusicSheetItem>>;
+type ILxMusicSheetInfoGetter = (
+    sheetItem: IMusic.IMusicSheetItem,
+    page: number,
+    platform: string,
+) => Promise<ILxSheetInfoResult | null>;
 
 function readPluginHeader(code: string): Record<string, string> {
     const match = code.match(/\/\*\*([\s\S]*?)\*\//);
@@ -389,6 +444,306 @@ function mapNeteaseSongInfo(
     };
 }
 
+function mapNeteaseSheetItem(item: any, platform: string): IMusic.IMusicSheetItem {
+    const creator = item?.creator ?? item?.user ?? {};
+    const trackCount = Number(item?.trackCount ?? item?.trackNumber ?? item?.songCount ?? 0);
+    const playCount = Number(item?.playCount ?? item?.subscribedCount ?? 0);
+
+    return {
+        id: String(item?.id ?? item?.playlistId),
+        platform,
+        title: cleanSearchText(item?.name ?? item?.title),
+        artwork: item?.coverImgUrl ?? item?.picUrl ?? item?.coverUrl,
+        description: cleanSearchText(item?.description ?? item?.copywriter ?? item?.updateFrequency),
+        worksNum: trackCount > 0 ? trackCount : undefined,
+        playCount: playCount > 0 ? playCount : undefined,
+        artist: cleanSearchText(creator?.nickname ?? creator?.name),
+        createAt: Number(item?.createTime) || undefined,
+        raw: item,
+    };
+}
+
+function mapNeteaseAlbumItem(item: any, platform: string): IAlbum.IAlbumItem {
+    const artistSource =
+        Array.isArray(item?.artists) && item.artists.length
+            ? item.artists
+            : item?.artist
+              ? [item.artist]
+              : undefined;
+    const artist = normalizeArtistNames(artistSource);
+    const publishTime = Number(item?.publishTime ?? item?.publish_time ?? 0);
+    const size = Number(item?.size ?? item?.songCount ?? 0);
+
+    return {
+        id: String(item?.id),
+        platform,
+        title: cleanSearchText(item?.name ?? item?.title),
+        artwork: item?.picUrl ?? item?.blurPicUrl,
+        description: cleanSearchText(item?.description ?? item?.briefDesc),
+        worksNum: size > 0 ? size : undefined,
+        artist,
+        date: publishTime ? new Date(publishTime).getFullYear().toString() : undefined,
+        createAt: publishTime || undefined,
+        raw: item,
+    };
+}
+
+function mapNeteaseArtistItem(item: any, platform: string): IArtist.IArtistItem {
+    return {
+        id: String(item?.id),
+        platform,
+        name: cleanSearchText(item?.name),
+        avatar: item?.img1v1Url ?? item?.picUrl ?? '',
+        fans: Number(item?.fansSize ?? item?.fansCount) || undefined,
+        description: cleanSearchText(item?.briefDesc ?? item?.description),
+    };
+}
+
+function mapNeteaseTag(item: any): IMusic.IMusicSheetItem {
+    const title = cleanSearchText(item?.name ?? item?.title ?? item);
+    return {
+        id: title,
+        platform: '',
+        title,
+    };
+}
+
+async function getNeteaseTopLists(platform: string): Promise<IMusic.IMusicSheetGroupItem[]> {
+    const resp = await axios.get('https://music.163.com/api/toplist/detail', {
+        headers: NETEASE_HEADERS,
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const list = Array.isArray(resp.data?.list) ? resp.data.list : [];
+    const data = list
+        .filter((item: any) => item?.id && item?.name)
+        .map((item: any) => mapNeteaseSheetItem(item, platform));
+
+    return data.length ? [{ title: '网易云音乐', data }] : [];
+}
+
+async function fetchNeteasePlaylistInfo(
+    sheetItem: IMusic.IMusicSheetItem,
+    page: number,
+    platform: string,
+): Promise<ILxSheetInfoResult | null> {
+    const playlistId = sheetItem.raw?.id ?? sheetItem.id;
+    if (!playlistId) return null;
+
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const offset = (currentPage - 1) * NETEASE_PLAYLIST_PAGE_SIZE;
+    const resp = await axios.get('https://music.163.com/api/v6/playlist/detail', {
+        params: {
+            id: playlistId,
+            n: NETEASE_PLAYLIST_PAGE_SIZE,
+            s: 0,
+        },
+        headers: NETEASE_HEADERS,
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const playlist = resp.data?.playlist;
+    if (!playlist) return null;
+
+    const trackIds = Array.isArray(playlist.trackIds)
+        ? playlist.trackIds.map((item: any) => item?.id).filter(Boolean)
+        : [];
+    const fallbackTracks = Array.isArray(playlist.tracks) ? playlist.tracks : [];
+    const pageIds = trackIds.slice(offset, offset + NETEASE_PLAYLIST_PAGE_SIZE);
+    let tracks: any[] = [];
+
+    if (pageIds.length) {
+        const detailById = await fetchNeteaseSongDetails(pageIds);
+        tracks = pageIds.map((id: any) => detailById.get(String(id))).filter(Boolean);
+    }
+
+    if (!tracks.length && currentPage === 1) {
+        tracks = fallbackTracks.slice(0, NETEASE_PLAYLIST_PAGE_SIZE);
+    } else if (!trackIds.length) {
+        tracks = fallbackTracks.slice(offset, offset + NETEASE_PLAYLIST_PAGE_SIZE);
+    }
+
+    const total = Number(playlist.trackCount ?? trackIds.length ?? fallbackTracks.length ?? 0);
+    const musicList = tracks
+        .filter((item) => item?.id)
+        .map((item) => mapNeteaseSongInfo(item, platform) as IMusic.IMusicItem);
+
+    return {
+        sheetItem: {
+            ...sheetItem,
+            ...mapNeteaseSheetItem(playlist, platform),
+        },
+        musicList,
+        isEnd:
+            musicList.length < NETEASE_PLAYLIST_PAGE_SIZE ||
+            (total > 0 && offset + NETEASE_PLAYLIST_PAGE_SIZE >= total),
+    };
+}
+
+async function getNeteaseTopListDetail(
+    topListItem: IMusic.IMusicSheetItem,
+    page: number,
+    platform: string,
+): Promise<ILxTopListInfoResult> {
+    const result = await fetchNeteasePlaylistInfo(topListItem, page, platform);
+    return {
+        topListItem: result?.sheetItem ?? topListItem,
+        musicList: result?.musicList ?? [],
+        isEnd: result?.isEnd ?? true,
+    };
+}
+
+async function getNeteaseRecommendSheetTags(): Promise<ILxRecommendSheetTagsResult> {
+    const resp = await axios.get('https://music.163.com/api/playlist/hottags', {
+        headers: NETEASE_HEADERS,
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const tags: any[] = Array.isArray(resp.data?.tags) ? resp.data.tags : [];
+    const mappedTags = tags.map(mapNeteaseTag).filter((item) => item.id);
+
+    return {
+        pinned: mappedTags.slice(0, 8),
+        data: mappedTags.length ? [{ title: '热门分类', data: mappedTags }] : [],
+    };
+}
+
+async function getNeteaseRecommendSheetsByTag(
+    tag: IMedia.IUnique,
+    page: number,
+    platform: string,
+): Promise<ILxPaginationResponse<IMusic.IMusicSheetItem>> {
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const category = cleanSearchText(tag?.title ?? tag?.id) || '全部';
+    const resp = await axios.get('https://music.163.com/api/playlist/list', {
+        params: {
+            cat: category,
+            order: 'hot',
+            offset: (currentPage - 1) * NETEASE_PLAYLIST_PAGE_SIZE,
+            limit: NETEASE_PLAYLIST_PAGE_SIZE,
+            total: currentPage === 1,
+        },
+        headers: NETEASE_HEADERS,
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const playlists = Array.isArray(resp.data?.playlists) ? resp.data.playlists : [];
+    const total = Number(resp.data?.total ?? 0);
+    return {
+        data: playlists.map((item: any) => mapNeteaseSheetItem(item, platform)),
+        isEnd:
+            resp.data?.more === false ||
+            playlists.length < NETEASE_PLAYLIST_PAGE_SIZE ||
+            (total > 0 && currentPage * NETEASE_PLAYLIST_PAGE_SIZE >= total),
+    };
+}
+
+async function getNeteaseMusicSheetInfo(
+    sheetItem: IMusic.IMusicSheetItem,
+    page: number,
+    platform: string,
+): Promise<ILxSheetInfoResult | null> {
+    return fetchNeteasePlaylistInfo(sheetItem, page, platform);
+}
+
+async function getNeteaseAlbumInfo(
+    albumItem: IAlbum.IAlbumItem,
+    page: number,
+    platform: string,
+): Promise<IPlugin.IAlbumInfoResult | null> {
+    if (page > 1) {
+        return {
+            albumItem,
+            musicList: [],
+            isEnd: true,
+        };
+    }
+
+    const albumId = albumItem.raw?.id ?? albumItem.id;
+    if (!albumId) return null;
+
+    const resp = await axios.get(`https://music.163.com/api/v1/album/${albumId}`, {
+        headers: NETEASE_HEADERS,
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const album = resp.data?.album ?? albumItem.raw ?? {};
+    const songs = Array.isArray(resp.data?.songs)
+        ? resp.data.songs
+        : Array.isArray(album?.songs)
+          ? album.songs
+          : [];
+
+    return {
+        albumItem: {
+            ...albumItem,
+            ...mapNeteaseAlbumItem(album, platform),
+        },
+        musicList: songs
+            .filter((item: any) => item?.id)
+            .map((item: any) => mapNeteaseSongInfo(item, platform) as IMusic.IMusicItem),
+        isEnd: true,
+    };
+}
+
+async function getNeteaseArtistWorks(
+    artistItem: IArtist.IArtistItem,
+    page: number,
+    type: IArtist.ArtistMediaType,
+    platform: string,
+): Promise<ILxSearchResult> {
+    const artistId = artistItem.id;
+    if (!artistId) return { isEnd: true, data: [] };
+
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const offset = (currentPage - 1) * LX_SEARCH_PAGE_SIZE;
+
+    if (type === 'album') {
+        const resp = await axios.get(`https://music.163.com/api/artist/albums/${artistId}`, {
+            params: {
+                offset,
+                limit: LX_SEARCH_PAGE_SIZE,
+            },
+            headers: NETEASE_HEADERS,
+            timeout: 15000,
+            responseType: 'json',
+        });
+
+        const albums = Array.isArray(resp.data?.hotAlbums) ? resp.data.hotAlbums : [];
+        return {
+            isEnd: resp.data?.more === false || albums.length < LX_SEARCH_PAGE_SIZE,
+            data: albums.map((item: any) => mapNeteaseAlbumItem(item, platform)),
+        };
+    }
+
+    const resp = await axios.get('https://music.163.com/api/v1/artist/songs', {
+        params: {
+            id: artistId,
+            order: 'hot',
+            offset,
+            limit: LX_SEARCH_PAGE_SIZE,
+        },
+        headers: NETEASE_HEADERS,
+        timeout: 15000,
+        responseType: 'json',
+    });
+
+    const songs = Array.isArray(resp.data?.songs) ? resp.data.songs : [];
+    const total = Number(resp.data?.total ?? 0);
+    return {
+        isEnd:
+            resp.data?.more === false ||
+            songs.length < LX_SEARCH_PAGE_SIZE ||
+            (total > 0 && currentPage * LX_SEARCH_PAGE_SIZE >= total),
+        data: songs.map((item: any) => mapNeteaseSongInfo(item, platform)),
+    };
+}
+
 async function searchTencentMusic(
     query: string,
     page: number,
@@ -477,6 +832,108 @@ async function searchNeteaseMusic(
             if (!merged.duration) merged.duration = normalizeDurationSeconds(item.duration);
             return merged;
         }),
+    };
+}
+
+async function searchNeteaseAlbum(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'album'>> {
+    const currentPage = Math.max(page, 1);
+    const resp = await axios.post(
+        'https://music.163.com/api/search/get/web',
+        new URLSearchParams({
+            s: query,
+            type: '10',
+            offset: String((currentPage - 1) * LX_SEARCH_PAGE_SIZE),
+            limit: String(LX_SEARCH_PAGE_SIZE),
+        }).toString(),
+        {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                ...NETEASE_HEADERS,
+            },
+            timeout: 15000,
+            responseType: 'json',
+        },
+    );
+
+    const result = resp.data?.result ?? {};
+    const list = Array.isArray(result.albums) ? result.albums : [];
+    const total = Number(result.albumCount ?? 0);
+
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || currentPage * LX_SEARCH_PAGE_SIZE >= total,
+        data: list.map((item: any) => mapNeteaseAlbumItem(item, platform)),
+    };
+}
+
+async function searchNeteaseArtist(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'artist'>> {
+    const currentPage = Math.max(page, 1);
+    const resp = await axios.post(
+        'https://music.163.com/api/search/get/web',
+        new URLSearchParams({
+            s: query,
+            type: '100',
+            offset: String((currentPage - 1) * LX_SEARCH_PAGE_SIZE),
+            limit: String(LX_SEARCH_PAGE_SIZE),
+        }).toString(),
+        {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                ...NETEASE_HEADERS,
+            },
+            timeout: 15000,
+            responseType: 'json',
+        },
+    );
+
+    const result = resp.data?.result ?? {};
+    const list = Array.isArray(result.artists) ? result.artists : [];
+    const total = Number(result.artistCount ?? 0);
+
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || currentPage * LX_SEARCH_PAGE_SIZE >= total,
+        data: list.map((item: any) => mapNeteaseArtistItem(item, platform)),
+    };
+}
+
+async function searchNeteaseSheet(
+    query: string,
+    page: number,
+    platform: string,
+): Promise<IPlugin.ISearchResult<'sheet'>> {
+    const currentPage = Math.max(page, 1);
+    const resp = await axios.post(
+        'https://music.163.com/api/search/get/web',
+        new URLSearchParams({
+            s: query,
+            type: '1000',
+            offset: String((currentPage - 1) * LX_SEARCH_PAGE_SIZE),
+            limit: String(LX_SEARCH_PAGE_SIZE),
+        }).toString(),
+        {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                ...NETEASE_HEADERS,
+            },
+            timeout: 15000,
+            responseType: 'json',
+        },
+    );
+
+    const result = resp.data?.result ?? {};
+    const list = Array.isArray(result.playlists) ? result.playlists : [];
+    const total = Number(result.playlistCount ?? 0);
+
+    return {
+        isEnd: list.length < LX_SEARCH_PAGE_SIZE || currentPage * LX_SEARCH_PAGE_SIZE >= total,
+        data: list.map((item: any) => mapNeteaseSheetItem(item, platform)),
     };
 }
 
@@ -804,12 +1261,25 @@ async function getMiguLyric(
     return rawLrc ? { rawLrc, lrc: lrcUrl } : null;
 }
 
-const LX_MUSIC_SEARCHERS: Record<string, ILxMusicSearcher> = {
-    tx: searchTencentMusic,
-    kg: searchKugouMusic,
-    wy: searchNeteaseMusic,
-    kw: searchKuwoMusic,
-    mg: searchMiguMusic,
+const LX_MEDIA_SEARCHERS: Record<string, Partial<Record<IMedia.SupportMediaType, ILxMediaSearcher>>> = {
+    tx: {
+        music: searchTencentMusic,
+    },
+    kg: {
+        music: searchKugouMusic,
+    },
+    wy: {
+        music: searchNeteaseMusic,
+        album: searchNeteaseAlbum,
+        artist: searchNeteaseArtist,
+        sheet: searchNeteaseSheet,
+    },
+    kw: {
+        music: searchKuwoMusic,
+    },
+    mg: {
+        music: searchMiguMusic,
+    },
 };
 
 const LX_LYRIC_GETTERS: Record<string, ILxLyricGetter> = {
@@ -822,6 +1292,34 @@ const LX_LYRIC_GETTERS: Record<string, ILxLyricGetter> = {
 
 const LX_MUSIC_INFO_GETTERS: Record<string, ILxMusicInfoGetter> = {
     wy: getNeteaseMusicInfo,
+};
+
+const LX_ALBUM_INFO_GETTERS: Record<string, ILxAlbumInfoGetter> = {
+    wy: getNeteaseAlbumInfo,
+};
+
+const LX_ARTIST_WORKS_GETTERS: Record<string, ILxArtistWorksGetter> = {
+    wy: getNeteaseArtistWorks,
+};
+
+const LX_TOP_LIST_GETTERS: Record<string, ILxTopListsGetter> = {
+    wy: getNeteaseTopLists,
+};
+
+const LX_TOP_LIST_DETAIL_GETTERS: Record<string, ILxTopListDetailGetter> = {
+    wy: getNeteaseTopListDetail,
+};
+
+const LX_RECOMMEND_TAG_GETTERS: Record<string, ILxRecommendTagsGetter> = {
+    wy: getNeteaseRecommendSheetTags,
+};
+
+const LX_RECOMMEND_SHEET_GETTERS: Record<string, ILxRecommendSheetsGetter> = {
+    wy: getNeteaseRecommendSheetsByTag,
+};
+
+const LX_MUSIC_SHEET_INFO_GETTERS: Record<string, ILxMusicSheetInfoGetter> = {
+    wy: getNeteaseMusicSheetInfo,
 };
 
 /**
@@ -974,6 +1472,8 @@ export async function executeLxPluginCode(
             if (source?.actions && !source.actions.includes('musicUrl')) continue;
 
             const platform = source.name ?? `${meta.name ?? '洛雪音源'}-${sourceKey}`;
+            const sourceSearchers = LX_MEDIA_SEARCHERS[sourceKey] ?? {};
+            const supportedSearchType = Object.keys(sourceSearchers) as IMedia.SupportMediaType[];
             const instance: IPlugin.IPluginInstance = {
                 platform,
                 version: meta.version,
@@ -981,7 +1481,7 @@ export async function executeLxPluginCode(
                 description: meta.description,
                 srcUrl: updateUrl,
                 defaultSearchType: 'music',
-                supportedSearchType: LX_MUSIC_SEARCHERS[sourceKey] ? ['music'] : [],
+                supportedSearchType,
                 async getMediaSource(musicItem, quality) {
                     const lxQuality = getLxQuality(sourceKey, quality);
                     const musicInfo = buildLxMusicInfo(musicItem, sourceKey);
@@ -1019,10 +1519,10 @@ export async function executeLxPluginCode(
                 },
                 _path: pluginPath,
             };
-            const searcher = LX_MUSIC_SEARCHERS[sourceKey];
-            if (searcher) {
+            if (supportedSearchType.length) {
                 instance.search = async (query, page, type) => {
-                    if (type !== 'music') return { isEnd: true, data: [] } as any;
+                    const searcher = sourceSearchers[type];
+                    if (!searcher) return { isEnd: true, data: [] } as any;
                     return searcher(query, page, platform) as any;
                 };
             }
@@ -1040,6 +1540,46 @@ export async function executeLxPluginCode(
                         ...buildLxMusicInfo(musicItem, sourceKey),
                         platform,
                     });
+            }
+
+            const albumInfoGetter = LX_ALBUM_INFO_GETTERS[sourceKey];
+            if (albumInfoGetter) {
+                instance.getAlbumInfo = async (albumItem, page) =>
+                    albumInfoGetter(albumItem, page, platform);
+            }
+
+            const artistWorksGetter = LX_ARTIST_WORKS_GETTERS[sourceKey];
+            if (artistWorksGetter) {
+                instance.getArtistWorks = async (artistItem, page, type) =>
+                    artistWorksGetter(artistItem, page, type, platform) as any;
+            }
+
+            const topListsGetter = LX_TOP_LIST_GETTERS[sourceKey];
+            if (topListsGetter) {
+                instance.getTopLists = async () => topListsGetter(platform);
+            }
+
+            const topListDetailGetter = LX_TOP_LIST_DETAIL_GETTERS[sourceKey];
+            if (topListDetailGetter) {
+                instance.getTopListDetail = async (topListItem, page) =>
+                    topListDetailGetter(topListItem, page, platform);
+            }
+
+            const recommendTagGetter = LX_RECOMMEND_TAG_GETTERS[sourceKey];
+            if (recommendTagGetter) {
+                instance.getRecommendSheetTags = async () => recommendTagGetter();
+            }
+
+            const recommendSheetGetter = LX_RECOMMEND_SHEET_GETTERS[sourceKey];
+            if (recommendSheetGetter) {
+                instance.getRecommendSheetsByTag = async (tag, page = 1) =>
+                    recommendSheetGetter(tag, page, platform);
+            }
+
+            const musicSheetInfoGetter = LX_MUSIC_SHEET_INFO_GETTERS[sourceKey];
+            if (musicSheetInfoGetter) {
+                instance.getMusicSheetInfo = async (sheetItem, page) =>
+                    musicSheetInfoGetter(sheetItem, page, platform);
             }
 
             instances.push(instance);

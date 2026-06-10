@@ -103,6 +103,7 @@
         color: var(--color-text-primary);
         font-size: var(--text-label-size);
         font-family: inherit;
+        -webkit-app-region: no-drag;
 
         &::placeholder {
             color: var(--color-text-placeholder);

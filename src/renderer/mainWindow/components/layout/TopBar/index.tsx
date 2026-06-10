@@ -32,7 +32,12 @@ export default function TopBar() {
     const searchMatch = useMatch(`/${RoutePaths.Search}/:query`);
     useEffect(() => {
         if (searchMatch?.params.query) {
-            setSearchValue(searchMatch.params.query);
+            const nextValue = searchMatch.params.query;
+            setSearchValue(nextValue);
+
+            if (!isComposingRef.current && inputRef.current) {
+                inputRef.current.value = nextValue;
+            }
         }
     }, [searchMatch?.params.query]);
 
@@ -68,6 +73,11 @@ export default function TopBar() {
             const trimmed = value.trim();
             if (!trimmed) return;
 
+            setSearchValue(trimmed);
+            if (inputRef.current) {
+                inputRef.current.value = trimmed;
+            }
+
             // 保存历史
             const updated = addSearchHistory(trimmed);
             setSearchHistory(updated);
@@ -88,7 +98,7 @@ export default function TopBar() {
             }
 
             if (e.key === 'Enter') {
-                commitSearch(searchValue);
+                commitSearch(inputRef.current?.value ?? searchValue);
             }
             if (e.key === 'Escape') {
                 setIsPanelOpen(false);
@@ -116,6 +126,9 @@ export default function TopBar() {
     const handleHistoryClick = useCallback(
         (item: string) => {
             setSearchValue(item);
+            if (inputRef.current) {
+                inputRef.current.value = item;
+            }
             commitSearch(item);
         },
         [commitSearch],
@@ -179,8 +192,13 @@ export default function TopBar() {
                     type="text"
                     placeholder={t('search.placeholder')}
                     aria-label={t('common.search')}
-                    value={searchValue}
-                    onChange={(e) => setSearchValue(e.target.value)}
+                    defaultValue={searchValue}
+                    onChange={(e) => {
+                        const nativeEvent = e.nativeEvent as { isComposing?: boolean };
+                        if (!isComposingRef.current && !nativeEvent.isComposing) {
+                            setSearchValue(e.currentTarget.value);
+                        }
+                    }}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
                     onKeyDown={handleSearchKeyDown}
