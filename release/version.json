@@ -1,9 +1,10 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.8",
   "changeLog": [
-    "修复 Ubuntu Dock 中应用图标显示为设置齿轮的问题",
-    "Linux deb/rpm 包新增 StartupWMClass，确保桌面环境能正确关联 AnhePlayer 窗口",
-    "Linux 安装包改为安装 hicolor 多尺寸图标，提升不同桌面主题下的图标兼容性"
+    "修复 Windows 10 安装包启动阶段异常时无日志、表现为闪退的问题",
+    "延后加载 better-sqlite3 原生模块，确保原生依赖加载失败时能写入 startup-crash.log 便于定位",
+    "默认关闭 Windows 自定义原生托盘菜单，降低首次启动时加载可选原生模块导致闪退的风险",
+    "临时停止产出 Windows legacy 安装包，避免 Electron 22 / Node 16 与当前依赖矩阵不兼容的包进入发布"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"

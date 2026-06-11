@@ -33,7 +33,7 @@ const defaultAppConfig: IAppConfig = {
     'normal.musicListHideColumns': ['duration'],
     'backup.resumeBehavior': 'append',
     'normal.language': 'zh-CN',
-    'normal.useCustomTrayMenu': true,
+    'normal.useCustomTrayMenu': false,
 };
 
 export default defaultAppConfig;

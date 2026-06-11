@@ -9,10 +9,19 @@
  * 此模块仅 main 层，无 preload / renderer。
  */
 
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import path from 'path';
 import type { IDatabaseProvider } from '@appTypes/infra/database';
 import { DB_FILE_NAME } from './common/constant';
+
+function loadDatabaseConstructor(): typeof Database {
+    // Load the native addon at setup time so startup crash logging is already active.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const mod = require('better-sqlite3') as
+        | typeof Database
+        | { default: typeof Database };
+    return 'default' in mod ? mod.default : mod;
+}
 
 class DatabaseInfra implements IDatabaseProvider {
     private isSetup = false;
@@ -26,7 +35,8 @@ class DatabaseInfra implements IDatabaseProvider {
         if (this.isSetup) return;
 
         const dbPath = path.join(globalContext.appPath.userData, DB_FILE_NAME);
-        this.db = new Database(dbPath);
+        const DatabaseConstructor = loadDatabaseConstructor();
+        this.db = new DatabaseConstructor(dbPath);
 
         // WAL 模式：并发读不阻塞写，写不阻塞读
         this.db.pragma('journal_mode = WAL');

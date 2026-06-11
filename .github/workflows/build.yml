@@ -85,6 +85,7 @@ jobs:
                   retention-days: 30
 
     build-windows-legacy:
+        if: false
         runs-on: windows-latest
         steps:
             - uses: actions/checkout@v5

@@ -1,4 +1,5 @@
 import './core/polyfills';
+import { setupStartupCrashLogger, writeStartupCrashLog } from '@main/core/startupCrashLogger';
 import { setupGlobalContext } from '@infra/globalContext/main';
 import requestForwarder from '@infra/requestForwarder/main';
 import appConfig from '@infra/appConfig/main';
@@ -27,6 +28,8 @@ import windowDrag from '@infra/windowDrag/main';
 import { LOCAL_PLUGIN_HASH } from '@common/constant';
 import fs from 'fs';
 import path from 'path';
+
+setupStartupCrashLogger();
 
 // ─── Phase 0: Portable 模式检测（仅 Windows） ───
 // 若 exe 同级目录下存在 portable/ 文件夹，则将 appData/userData 重定向至该目录，
@@ -160,14 +163,20 @@ function restoreWindowState() {
 }
 
 app.on('ready', async () => {
-    await bootstrapInfra(windowManager);
-    windowManager.showWindow('main');
-    restoreWindowState();
+    try {
+        await bootstrapInfra(windowManager);
+        windowManager.showWindow('main');
+        restoreWindowState();
 
-    // 处理启动时传入的 deep link（Windows: 命令行参数）
-    const launchUrl = process.argv.find((arg) => arg.startsWith('anheplayer:'));
-    if (launchUrl) {
-        handleDeepLink(launchUrl);
+        // 处理启动时传入的 deep link（Windows: 命令行参数）
+        const launchUrl = process.argv.find((arg) => arg.startsWith('anheplayer:'));
+        if (launchUrl) {
+            handleDeepLink(launchUrl);
+        }
+    } catch (ex) {
+        writeStartupCrashLog('app ready bootstrap failed', ex);
+        logger.error('App ready bootstrap failed', ex);
+        app.exit(1);
     }
 });
 
