@@ -12,6 +12,19 @@ import { mainConfig } from './config/webpack.main.config';
 import { rendererConfig } from './config/webpack.renderer.config';
 import { preloadConfig } from './config/webpack.preload.config';
 
+const linuxDesktopTemplate = path.resolve(__dirname, 'release/linux-desktop.ejs');
+const linuxIcon = {
+    '16x16': path.resolve(__dirname, 'release/linux-icons/16x16.png'),
+    '24x24': path.resolve(__dirname, 'release/linux-icons/24x24.png'),
+    '32x32': path.resolve(__dirname, 'release/linux-icons/32x32.png'),
+    '48x48': path.resolve(__dirname, 'release/linux-icons/48x48.png'),
+    '64x64': path.resolve(__dirname, 'release/linux-icons/64x64.png'),
+    '128x128': path.resolve(__dirname, 'release/linux-icons/128x128.png'),
+    '256x256': path.resolve(__dirname, 'release/linux-icons/256x256.png'),
+    '512x512': path.resolve(__dirname, 'release/linux-icons/512x512.png'),
+    '1024x1024': path.resolve(__dirname, 'release/linux-icons/1024x1024.png'),
+} as unknown as string;
+
 const config: ForgeConfig = {
     packagerConfig: {
         asar: {
@@ -34,17 +47,17 @@ const config: ForgeConfig = {
             format: 'ULFO',
         }),
         new MakerDeb({
-            options: {
-                bin: 'anhe-player',
-                icon: path.resolve(__dirname, 'res/logo-linux.png'),
-                mimeType: ['x-scheme-handler/anheplayer'],
-            },
+            bin: 'anhe-player',
+            categories: ['AudioVideo', 'Audio'],
+            desktopTemplate: linuxDesktopTemplate,
+            icon: linuxIcon,
+            mimeType: ['x-scheme-handler/anheplayer'],
         }),
         new MakerRpm({
-            options: {
-                bin: 'anhe-player',
-                icon: path.resolve(__dirname, 'res/logo-linux.png'),
-            },
+            bin: 'anhe-player',
+            categories: ['AudioVideo', 'Audio'],
+            desktopTemplate: linuxDesktopTemplate,
+            icon: linuxIcon,
         }),
     ],
     plugins: [

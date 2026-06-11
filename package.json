@@ -1,9 +1,10 @@
 {
     "name": "anhe-player",
     "productName": "AnhePlayer",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "description": "一个插件化的音乐播放器",
     "main": ".webpack/main",
+    "desktopName": "anhe-player.desktop",
     "private": true,
     "scripts": {
         "start": "electron-forge start",
