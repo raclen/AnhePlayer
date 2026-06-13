@@ -11,6 +11,8 @@ English | [简体中文](./README.md)
 [![License](https://img.shields.io/github/license/raclen/AnhePlayer?style=flat&color=blue)](./LICENSE)
 [![Version](https://img.shields.io/github/package-json/v/raclen/AnhePlayer?style=flat&color=orange)](./package.json)
 [![Release](https://img.shields.io/github/v/release/raclen/AnhePlayer?style=flat&color=green)](https://github.com/raclen/AnhePlayer/releases)
+[![Downloads](https://img.shields.io/github/downloads/raclen/AnhePlayer/total?style=flat&color=brightgreen)](https://github.com/raclen/AnhePlayer/releases)
+[![Stars](https://img.shields.io/github/stars/raclen/AnhePlayer?style=flat&color=yellow)](https://github.com/raclen/AnhePlayer/stargazers)
 
 </div>
 
@@ -130,6 +132,10 @@ This project uses GitHub Actions to build release packages:
 ## Contributing
 
 Issues and pull requests are welcome. Please read the [Contributing Guide](./CONTRIBUTING.md) before starting development.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=raclen/AnhePlayer&type=Date)](https://star-history.com/#raclen/AnhePlayer&Date)
 
 ## License
 
