@@ -1,10 +1,11 @@
 {
-  "version": "1.0.8",
+  "version": "1.0.10",
   "changeLog": [
-    "修复 Windows 10 安装包启动阶段异常时无日志、表现为闪退的问题",
-    "延后加载 better-sqlite3 原生模块，确保原生依赖加载失败时能写入 startup-crash.log 便于定位",
-    "默认关闭 Windows 自定义原生托盘菜单，降低首次启动时加载可选原生模块导致闪退的风险",
-    "临时停止产出 Windows legacy 安装包，避免 Electron 22 / Node 16 与当前依赖矩阵不兼容的包进入发布"
+    "重新触发 Actions 打包并发布 1.0.10，补齐 1.0.9 Release 缺失的安装包产物",
+    "完善歌词功能：支持本地音乐无歌词时自动联网搜索并匹配歌词，可在「设置 → 歌词设置」中关闭",
+    "支持 MP3/FLAC 等格式的内嵌同步歌词（SYLT 帧），自动转换为标准 LRC 格式显示",
+    "修复搜索歌词无效、内嵌歌词中文乱码、内嵌歌词显示「暂无歌词」等问题",
+    "为腾讯、酷狗、网易、酷我、咪咕等洛雪音乐源启用歌词搜索，并优化 5 级歌词获取回退机制"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"

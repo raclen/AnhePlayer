@@ -70,29 +70,31 @@ jobs:
                   echo "=== Release assets ==="
                   ls -lh release-assets/
 
-            - name: Create tag
+            - name: Create tag if needed
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   TAG="${{ steps.meta.outputs.tag }}"
                   COMMIT="${{ steps.meta.outputs.commit }}"
-                  # Check if tag already exists
                   if gh api "repos/${{ github.repository }}/git/refs/tags/${TAG}" &>/dev/null; then
-                    echo "::error::Tag ${TAG} already exists. Aborting."
-                    exit 1
+                    echo "Tag ${TAG} already exists. Reusing it for release assets."
+                  else
+                    gh api "repos/${{ github.repository }}/git/refs" \
+                      -X POST \
+                      -f ref="refs/tags/${TAG}" \
+                      -f sha="${COMMIT}"
                   fi
-                  gh api "repos/${{ github.repository }}/git/refs" \
-                    -X POST \
-                    -f ref="refs/tags/${TAG}" \
-                    -f sha="${COMMIT}"
 
-            - name: Create GitHub Draft Release
+            - name: Create GitHub Release
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
-                  gh release create "${{ steps.meta.outputs.tag }}" \
-                    --title "AnhePlayer ${{ steps.meta.outputs.version }}" \
-                    --notes-file release-notes.md \
-                    --draft \
-                    ${{ steps.meta.outputs.prerelease == 'true' && '--prerelease' || '' }} \
-                    release-assets/*
+                  if gh release view "${{ steps.meta.outputs.tag }}" &>/dev/null; then
+                    gh release upload "${{ steps.meta.outputs.tag }}" release-assets/* --clobber
+                  else
+                    gh release create "${{ steps.meta.outputs.tag }}" \
+                      --title "AnhePlayer ${{ steps.meta.outputs.version }}" \
+                      --notes-file release-notes.md \
+                      ${{ steps.meta.outputs.prerelease == 'true' && '--prerelease' || '' }} \
+                      release-assets/*
+                  fi
