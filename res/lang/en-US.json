@@ -393,6 +393,8 @@
             "subtitle": "Style, Color & Display Settings",
             "enable_desktop_label": "Show desktop lyrics",
             "enable_desktop_desc": "Sync with desktop and in-player display",
+            "auto_match_label": "Auto-match lyrics",
+            "auto_match_desc": "Search online and cache lyrics when none are available",
             "always_on_top_label": "Desktop lyrics on top",
             "always_on_top_desc": "Lyrics window always stays in front",
             "lock_label": "Lock desktop lyrics",

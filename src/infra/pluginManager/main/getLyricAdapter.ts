@@ -7,6 +7,7 @@
  * 2. 读取本地同名 .lrc 文件（含翻译文件 -tr）
  * 3. 调用插件的 getLyric 方法
  * 4. 如果插件无结果但有 lrcUrl，通过 HTTP 获取
+ * 5. 自动匹配：联网搜索歌词并缓存（受 lyric.autoMatch 配置控制）
  *
  * 此适配器在主进程运行（需要 fs 访问），通过 IPC 向渲染进程暴露。
  */
@@ -77,6 +78,8 @@ function getLocalPath(
  * @param callPluginMethod 调用插件方法的函数
  * @param mediaMeta mediaMeta DI 接口
  * @param musicItemProvider musicSheet DI 接口
+ * @param listLyricSearchPlugins 返回支持 lyric 搜索且已启用的插件平台名列表
+ * @param isAutoMatchEnabled 是否启用自动匹配（lyric.autoMatch 配置）
  * @returns 歌词源结果，或 null
  */
 export async function getLyricAdapter(
@@ -84,6 +87,8 @@ export async function getLyricAdapter(
     callPluginMethod: CallPluginMethodFn,
     mediaMeta: IMediaMetaProvider,
     musicItemProvider: IMusicItemProvider,
+    listLyricSearchPlugins?: () => Array<{ platform: string }>,
+    isAutoMatchEnabled?: () => boolean,
 ): Promise<ILyric.ILyricSource | null> {
     const { musicItem } = params;
 
@@ -216,6 +221,60 @@ export async function getLyricAdapter(
             };
         } catch {
             // 远程获取失败
+        }
+    }
+
+    // ─── Step 5: 自动匹配——联网搜索歌词并缓存 ───
+    if (isAutoMatchEnabled?.() && musicItem.title && listLyricSearchPlugins) {
+        const query = `${musicItem.title}${musicItem.artist ? ` ${musicItem.artist}` : ''}`.trim();
+        const plugins = listLyricSearchPlugins();
+
+        for (const { platform } of plugins) {
+            // 不向歌曲自身所属插件重复请求（Step 3 已尝试过）
+            if (platform === musicItem.platform) continue;
+
+            try {
+                const searchResult = await callPluginMethod({
+                    platform,
+                    method: 'search',
+                    args: [query, 1, 'lyric'],
+                });
+
+                const firstItem = searchResult?.data?.[0];
+                if (!firstItem) continue;
+
+                const lyricSource = await callPluginMethod({
+                    platform,
+                    method: 'getLyric',
+                    args: [firstItem],
+                });
+
+                if (lyricSource?.rawLrc || lyricSource?.translation) {
+                    let matchedRawLrc = lyricSource.rawLrc;
+                    let matchedTranslation = lyricSource.translation;
+                    // 仅有翻译无原文时，将翻译提升为原文
+                    if (!matchedRawLrc) {
+                        matchedRawLrc = matchedTranslation;
+                        matchedTranslation = undefined;
+                    }
+
+                    // 回写缓存到 mediaMeta，下次无需再联网
+                    mediaMeta.setMeta(musicItem.platform, String(musicItem.id), {
+                        associatedLyric: {
+                            musicItem: firstItem,
+                            rawLrc: matchedRawLrc,
+                            translation: matchedTranslation,
+                        },
+                    });
+
+                    return {
+                        rawLrc: matchedRawLrc,
+                        translation: matchedTranslation,
+                    };
+                }
+            } catch {
+                // 当前插件搜索/取词失败，尝试下一个
+            }
         }
     }
 

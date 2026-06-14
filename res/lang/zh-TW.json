@@ -393,6 +393,8 @@
             "subtitle": "樣式、顏色與顯示策略",
             "enable_desktop_label": "顯示桌面歌詞",
             "enable_desktop_desc": "支援桌面與播放器內同步",
+            "auto_match_label": "自動匹配歌詞",
+            "auto_match_desc": "無歌詞時自動聯網搜尋匹配並快取",
             "always_on_top_label": "桌面歌詞置頂",
             "always_on_top_desc": "歌詞視窗始終在最前方",
             "lock_label": "鎖定桌面歌詞",

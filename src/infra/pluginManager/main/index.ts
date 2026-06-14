@@ -278,6 +278,8 @@ class PluginManager {
                 (p) => this.callPluginMethod(p as any),
                 this.mediaMeta,
                 this.musicItemProvider,
+                () => this.listLyricSearchPlugins(),
+                () => this.appConfigReader?.getConfigByKey('lyric.autoMatch') !== false,
             );
         });
 
@@ -660,6 +662,25 @@ class PluginManager {
             }
         }
         return undefined;
+    }
+
+    /**
+     * 列出支持 lyric 搜索且已启用的插件平台名。
+     * 供 getLyricAdapter 的自动匹配（Step 5）枚举候选歌词源。
+     */
+    private listLyricSearchPlugins(): Array<{ platform: string }> {
+        const result: Array<{ platform: string }> = [];
+        for (const loaded of this.plugins.values()) {
+            const { delegate, hash } = loaded;
+            if (
+                delegate.supportedMethod?.includes('search') &&
+                delegate.supportedSearchType?.includes('lyric') &&
+                this.pluginMeta[hash]?.enabled !== false
+            ) {
+                result.push({ platform: loaded.instance.platform });
+            }
+        }
+        return result;
     }
 
     /** 通过多个 platform 查找插件，并按源文件去重 */

@@ -32,6 +32,42 @@ function getB64Picture(picture: IPicture): string {
     return `data:${picture.format};base64,${Buffer.from(picture.data).toString('base64')}`;
 }
 
+/** 毫秒时间戳 => [mm:ss.xx] LRC 时间标签 */
+function msToLrcTag(ms: number): string {
+    const totalSec = ms / 1000;
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec - min * 60;
+    const secInt = Math.floor(sec);
+    const hundredths = Math.round((sec - secInt) * 100);
+    return `[${String(min).padStart(2, '0')}:${String(secInt).padStart(2, '0')}.${String(
+        hundredths,
+    ).padStart(2, '0')}]`;
+}
+
+/**
+ * 从 music-metadata 的 common.lyrics 提取 LRC 文本。
+ *
+ * 每个 lyrics 标签可能来自 USLT（非同步，text 字段，常已是 LRC 或纯文本）
+ * 或 SYLT（同步，syncText 数组，带毫秒时间戳）。
+ * 优先使用 text；text 为空时用 syncText 生成带时间戳的 LRC。
+ */
+function extractLrc(lyrics: ICommonTagsResult['lyrics']): string {
+    if (!lyrics?.length) return '';
+
+    for (const tag of lyrics) {
+        if (tag.text?.trim()) return tag.text;
+
+        if (tag.syncText?.length) {
+            const lines = tag.syncText
+                .filter((s) => s.timestamp != null)
+                .map((s) => `${msToLrcTag(s.timestamp!)}${s.text ?? ''}`);
+            if (lines.length) return lines.join('\n');
+        }
+    }
+
+    return '';
+}
+
 /**
  * 检测并修正 CJK 元数据中的编码问题。
  * 部分音频文件的标签使用 GB2312 等编码写入，但 music-metadata 按 latin1 解析，
@@ -66,6 +102,11 @@ async function fixCJKEncoding(common: ICommonTagsResult): Promise<void> {
     if (common.lyrics) {
         for (const lyric of common.lyrics) {
             if (lyric.text) lyric.text = decode(lyric.text);
+            if (lyric.syncText) {
+                for (const s of lyric.syncText) {
+                    if (s.text) s.text = decode(s.text);
+                }
+            }
         }
     }
 }
@@ -93,7 +134,6 @@ export async function parseAudioMeta(
         await fixCJKEncoding(common);
 
         const result: ParsedAudioMeta = {};
-        console.log('[parseAudioMeta] Parsed common tags:', common);
 
         if (common.title) result.title = common.title;
         if (common.artist) result.artist = common.artist;
@@ -105,7 +145,7 @@ export async function parseAudioMeta(
         }
 
         if (!skipLyrics && common.lyrics?.length) {
-            const lrc = common.lyrics.map((l) => l.text ?? '').join('');
+            const lrc = extractLrc(common.lyrics);
             if (lrc) result.rawLrc = lrc;
         }
 

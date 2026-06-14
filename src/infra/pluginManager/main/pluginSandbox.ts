@@ -1612,24 +1612,31 @@ async function getMiguLyric(
     return rawLrc ? { rawLrc, lrc: lrcUrl } : null;
 }
 
+// lyric 搜索复用 music 搜索器：搜索结果项为 IMusicItem（含 raw 字段），
+// 关联歌词时由对应的 LX_LYRIC_GETTERS 取词。
 const LX_MEDIA_SEARCHERS: Record<string, Partial<Record<IMedia.SupportMediaType, ILxMediaSearcher>>> = {
     tx: {
         music: searchTencentMusic,
+        lyric: searchTencentMusic,
     },
     kg: {
         music: searchKugouMusic,
+        lyric: searchKugouMusic,
     },
     wy: {
         music: searchNeteaseMusic,
         album: searchNeteaseAlbum,
         artist: searchNeteaseArtist,
         sheet: searchNeteaseSheet,
+        lyric: searchNeteaseMusic,
     },
     kw: {
         music: searchKuwoMusic,
+        lyric: searchKuwoMusic,
     },
     mg: {
         music: searchMiguMusic,
+        lyric: searchMiguMusic,
     },
 };
 

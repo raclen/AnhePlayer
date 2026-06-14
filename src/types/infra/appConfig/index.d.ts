@@ -50,6 +50,8 @@ interface _IAppConfig {
     'lyric.fontSize': number;
     /** 描边颜色 */
     'lyric.strokeColor': string;
+    /** 无歌词时自动联网搜索匹配 */
+    'lyric.autoMatch': boolean;
 
     /** 是否启用本地快捷键 */
     'shortCut.enableLocal': boolean;
