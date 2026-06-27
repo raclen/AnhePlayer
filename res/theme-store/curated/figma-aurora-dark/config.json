@@ -1,0 +1,9 @@
+{
+    "name": "极夜流光",
+    "preview": "@/thumb.svg",
+    "thumb": "@/thumb.svg",
+    "author": "raclen",
+    "authorUrl": "https://openai.com",
+    "version": "1.0.0",
+    "description": "Figma 风格的深色主题，冷蓝玻璃面板搭配青绿流光与更强的空间层次"
+}

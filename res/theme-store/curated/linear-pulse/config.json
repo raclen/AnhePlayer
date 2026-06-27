@@ -1,0 +1,9 @@
+{
+    "name": "Pulse Grid",
+    "preview": "@/thumb.svg",
+    "thumb": "@/thumb.svg",
+    "author": "raclen",
+    "authorUrl": "https://openai.com",
+    "version": "1.0.0",
+    "description": "更偏 Linear / Raycast 风的高密度深色主题，锐利线条、冷白文本和青蓝焦点"
+}

@@ -57,7 +57,7 @@ Install             Local .js file, remote .js link
 
 ## Theme Packs
 
-Anhe Player supports theme packs for UI customization. The app includes light and pure black themes.
+Anhe Player supports theme packs for UI customization. The app includes light and pure black themes, and the theme marketplace also ships a set of curated themes you can install directly.
 
 A theme pack can be a folder or a `.mftheme` archive:
 
@@ -92,6 +92,14 @@ Example `config.json`:
 Use `@/` to reference the theme pack root directory. For the full list of supported theme variables, see the built-in light theme:
 
 [`res/builtin-themes/light/index.css`](./res/builtin-themes/light/index.css)
+
+Curated themes currently available in the marketplace:
+
+- `柔雾白昼`: Figma-inspired light theme
+- `极夜流光`: Figma-inspired dark theme
+- `Silk Motion`: more Apple Music-like
+- `Pulse Grid`: more Linear / Raycast-like
+- `Hype Wave`: more trend-driven music product styling
 
 ## Development
 

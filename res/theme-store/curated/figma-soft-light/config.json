@@ -1,0 +1,9 @@
+{
+    "name": "柔雾白昼",
+    "preview": "@/thumb.svg",
+    "thumb": "@/thumb.svg",
+    "author": "raclen",
+    "authorUrl": "https://openai.com",
+    "version": "1.0.0",
+    "description": "Figma 风格的浅色主题，带有奶油纸感背景、珊瑚强调色与柔和玻璃层次"
+}

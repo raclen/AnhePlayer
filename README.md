@@ -64,7 +64,7 @@ AnhePlayer 默认不内置音源解析插件。你可以在插件管理中安装
 
 ## 主题包
 
-AnhePlayer 支持通过主题包自定义界面外观。内置主题包括浅色主题和纯黑主题。
+AnhePlayer 支持通过主题包自定义界面外观。本地内置主题包括浅色主题和纯黑主题，主题市场里还提供了多套可直接安装的策展主题。
 
 主题包可以是一个文件夹，也可以是 `.mftheme` 压缩包：
 
@@ -99,6 +99,14 @@ my-theme/
 路径中的 `@/` 表示主题包根目录。完整主题变量可参考内置浅色主题：
 
 [`res/builtin-themes/light/index.css`](./res/builtin-themes/light/index.css)
+
+主题市场当前提供的策展主题包括：
+
+- `柔雾白昼`：Figma 风格浅色主题
+- `极夜流光`：Figma 风格深色主题
+- `Silk Motion`：更偏 Apple Music 风
+- `Pulse Grid`：更偏 Linear / Raycast 风
+- `Hype Wave`：更偏潮流音乐产品风
 
 ## 开发
 

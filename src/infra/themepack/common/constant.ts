@@ -16,6 +16,9 @@ export const THEMEPACK_DIR_NAME = 'anhe-player-themepacks';
 /** 内置主题包目录名（位于 res 下） */
 export const BUILTIN_THEME_DIR_NAME = 'builtin-themes';
 
+/** 本地策展主题目录（位于 res 下） */
+export const CURATED_THEME_DIR_NAME = 'theme-store/curated';
+
 /** IPC 通道 */
 export const IPC = {
     THEME_SWITCHED: '@infra/themepack/theme-switched',

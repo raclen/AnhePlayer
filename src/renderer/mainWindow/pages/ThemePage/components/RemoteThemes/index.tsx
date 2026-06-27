@@ -18,6 +18,19 @@ import { A } from '@renderer/mainWindow/components/ui/A';
 import { THEME_STORE_BASE_URLS, GITHUB_REPO_URL } from '../../constants';
 import './index.scss';
 
+interface ICuratedThemeItem {
+    id: string;
+    name: string;
+    author?: string;
+    authorUrl?: string;
+    description?: string;
+    version?: string;
+    tags?: string[];
+    preview?: string;
+    sourcePath: string;
+    isNew?: boolean;
+}
+
 /** publish.json 顶层结构 */
 interface IRemotePublishData {
     version: string;
@@ -43,14 +56,118 @@ interface IRemoteThemeItem {
     isNew?: boolean;
 }
 
-/** 本地解析后的远程主题视图模型 */
-interface IRemoteThemeViewModel {
-    item: IRemoteThemeItem;
-    /** .mftheme 下载 URL */
-    srcUrl: string;
-    /** 处理后的预览图 URL */
-    previewUrl?: string;
+type ThemeMarketViewModel =
+    | {
+          kind: 'curated';
+          key: string;
+          installKey: string;
+          item: ICuratedThemeItem;
+          previewUrl?: string;
+      }
+    | {
+          kind: 'remote';
+          key: string;
+          installKey: string;
+          item: IRemoteThemeItem;
+          srcUrl: string;
+          previewUrl?: string;
+      };
+
+function buildResPath(relativePath: string): string {
+    return `${globalContext.appPath.res}/${relativePath}`;
 }
+
+function buildFileUrl(relativePath: string): string {
+    return `file:///${buildResPath(relativePath).replace(/\\/g, '/')}`;
+}
+
+const curatedThemes: ThemeMarketViewModel[] = [
+    {
+        kind: 'curated',
+        key: 'curated:figma-soft-light',
+        installKey: 'curated:figma-soft-light',
+        item: {
+            id: 'figma-soft-light',
+            name: '柔雾白昼',
+            author: 'raclen',
+            authorUrl: 'https://github.com/raclen',
+            description: 'Figma 风格的浅色主题，带有奶油纸感背景、珊瑚强调色与柔和玻璃层次',
+            version: '1.0.0',
+            tags: ['Figma', '浅色', '柔和'],
+            sourcePath: buildResPath('theme-store/curated/figma-soft-light'),
+            isNew: true,
+        },
+        previewUrl: buildFileUrl('theme-store/curated/figma-soft-light/thumb.svg'),
+    },
+    {
+        kind: 'curated',
+        key: 'curated:figma-aurora-dark',
+        installKey: 'curated:figma-aurora-dark',
+        item: {
+            id: 'figma-aurora-dark',
+            name: '极夜流光',
+            author: 'raclen',
+            authorUrl: 'https://github.com/raclen',
+            description: 'Figma 风格的深色主题，冷蓝玻璃面板搭配青绿流光与更强的空间层次',
+            version: '1.0.0',
+            tags: ['Figma', '深色', '玻璃'],
+            sourcePath: buildResPath('theme-store/curated/figma-aurora-dark'),
+            isNew: true,
+        },
+        previewUrl: buildFileUrl('theme-store/curated/figma-aurora-dark/thumb.svg'),
+    },
+    {
+        kind: 'curated',
+        key: 'curated:apple-music-silk',
+        installKey: 'curated:apple-music-silk',
+        item: {
+            id: 'apple-music-silk',
+            name: 'Silk Motion',
+            author: 'raclen',
+            authorUrl: 'https://github.com/raclen',
+            description: '更偏 Apple Music 风的丝滑浅色主题，半透明分层、克制留白和柔和桃粉强调色',
+            version: '1.0.0',
+            tags: ['Apple Music', '浅色', '玻璃'],
+            sourcePath: buildResPath('theme-store/curated/apple-music-silk'),
+            isNew: true,
+        },
+        previewUrl: buildFileUrl('theme-store/curated/apple-music-silk/thumb.svg'),
+    },
+    {
+        kind: 'curated',
+        key: 'curated:linear-pulse',
+        installKey: 'curated:linear-pulse',
+        item: {
+            id: 'linear-pulse',
+            name: 'Pulse Grid',
+            author: 'raclen',
+            authorUrl: 'https://github.com/raclen',
+            description: '更偏 Linear / Raycast 风的高密度深色主题，锐利线条、冷白文本和青蓝焦点',
+            version: '1.0.0',
+            tags: ['Linear', 'Raycast', '深色'],
+            sourcePath: buildResPath('theme-store/curated/linear-pulse'),
+            isNew: true,
+        },
+        previewUrl: buildFileUrl('theme-store/curated/linear-pulse/thumb.svg'),
+    },
+    {
+        kind: 'curated',
+        key: 'curated:hype-wave',
+        installKey: 'curated:hype-wave',
+        item: {
+            id: 'hype-wave',
+            name: 'Hype Wave',
+            author: 'raclen',
+            authorUrl: 'https://github.com/raclen',
+            description: '更偏潮流音乐产品风的高对比主题，荧光黄绿、深色舞台背景和更强的节奏感',
+            version: '1.0.0',
+            tags: ['潮流音乐', '深色', '高对比'],
+            sourcePath: buildResPath('theme-store/curated/hype-wave'),
+            isNew: true,
+        },
+        previewUrl: buildFileUrl('theme-store/curated/hype-wave/thumb.svg'),
+    },
+];
 
 /**
  * 将远程相对路径或 #hex 纯色解析为完整 URL。
@@ -88,18 +205,9 @@ async function raceWithData(
     }
 }
 
-/**
- * RemoteThemes — 在线主题市场
- *
- * 从 GitHub 远程仓库拉取主题列表并展示为卡片 grid。
- * 多镜像竞速策略，支持下载安装和版本更新。
- */
-
-// ── Jotai State（模块级，app session 内持久化） ──
-
 const store = getDefaultStore();
-const remoteThemesAtom = atom<IRemoteThemeViewModel[]>([]);
-const remoteStatusAtom = atom<RequestStatus>(RequestStatus.Idle);
+const remoteThemesAtom = atom<ThemeMarketViewModel[]>(curatedThemes);
+const remoteStatusAtom = atom<RequestStatus>(RequestStatus.Done);
 const installingHashAtom = atom<Set<string>>(new Set<string>());
 
 export default function RemoteThemes() {
@@ -112,7 +220,6 @@ export default function RemoteThemes() {
     const installingHashes = useAtomValue(installingHashAtom);
     const [activeTag, setActiveTag] = useState<string | null>(null);
 
-    /** 从主题数据中提取去重排序的标签列表 */
     const allTags = useMemo(() => {
         const tagSet = new Set<string>();
         for (const vm of themes) {
@@ -121,29 +228,40 @@ export default function RemoteThemes() {
         return Array.from(tagSet).sort((a, b) => a.localeCompare(b));
     }, [themes]);
 
-    /** 根据活动标签过滤主题 */
     const filteredThemes = useMemo(
         () => (activeTag ? themes.filter((vm) => vm.item.tags?.includes(activeTag)) : themes),
         [themes, activeTag],
     );
 
     const loadThemes = useCallback(async () => {
-        if (store.get(remoteStatusAtom) === RequestStatus.Done) return;
+        if (store.get(remoteStatusAtom) !== RequestStatus.Done) {
+            store.set(remoteStatusAtom, RequestStatus.Done);
+        }
 
-        store.set(remoteStatusAtom, RequestStatus.Pending);
+        const loadedKeys = new Set(curatedThemes.map((vm) => vm.key));
+
         try {
             const { data, baseUrl } = await raceWithData(THEME_STORE_BASE_URLS);
+            const remoteViewModels: ThemeMarketViewModel[] = data
+                .map((item) => ({
+                    kind: 'remote' as const,
+                    key: `remote:${item.hash}`,
+                    installKey: item.hash,
+                    item,
+                    srcUrl: `${baseUrl}${item.themeUrl}`,
+                    previewUrl: resolvePreviewUrl(item.preview, baseUrl),
+                }))
+                .filter((vm) => {
+                    if (loadedKeys.has(vm.key)) return false;
+                    loadedKeys.add(vm.key);
+                    return true;
+                });
 
-            const viewModels: IRemoteThemeViewModel[] = data.map((item) => ({
-                item,
-                srcUrl: `${baseUrl}${item.themeUrl}`,
-                previewUrl: resolvePreviewUrl(item.preview, baseUrl),
-            }));
-
-            store.set(remoteThemesAtom, viewModels);
-            store.set(remoteStatusAtom, RequestStatus.Done);
+            if (remoteViewModels.length > 0) {
+                store.set(remoteThemesAtom, [...curatedThemes, ...remoteViewModels]);
+            }
         } catch {
-            store.set(remoteStatusAtom, RequestStatus.Error);
+            // 远程主题不可用时，保留策展主题即可。
         }
     }, []);
 
@@ -152,33 +270,44 @@ export default function RemoteThemes() {
     }, [loadThemes]);
 
     const doInstall = useCallback(
-        async (vm: IRemoteThemeViewModel, useAfterInstall: boolean) => {
-            store.set(installingHashAtom, (prev) => new Set(prev).add(vm.item.hash));
+        async (vm: ThemeMarketViewModel, useAfterInstall: boolean) => {
+            store.set(installingHashAtom, (prev) => new Set(prev).add(vm.installKey));
             try {
                 const existingLocal = installedPacks.find(
-                    (p) => p.name === vm.item.name && !p.builtin,
+                    (pack) => pack.name === vm.item.name && !pack.builtin,
                 );
-                const tp = await themePack.installRemoteThemePack(vm.srcUrl, existingLocal?.hash);
-                if (tp) {
-                    showToast(t('theme.install_theme_success', { name: tp.name }));
-                    if (useAfterInstall) {
-                        await themePack.selectTheme(tp);
-                    }
-                } else {
+
+                const tp =
+                    vm.kind === 'remote'
+                        ? await themePack.installRemoteThemePack(vm.srcUrl, existingLocal?.hash)
+                        : await themePack.installThemePackFromDirectory(
+                              vm.item.sourcePath,
+                              existingLocal?.hash,
+                          );
+
+                if (!tp) {
                     showToast(t('theme.install_theme_fail', { reason: 'unknown' }), {
                         type: 'warn',
                     });
                     throw new Error('install returned null');
                 }
+
+                showToast(t('theme.install_theme_success', { name: tp.name }));
+                if (useAfterInstall) {
+                    await themePack.selectTheme(tp);
+                }
             } catch (err) {
-                showToast(t('theme.install_theme_fail', { reason: 'network' }), {
-                    type: 'warn',
-                });
+                showToast(
+                    t('theme.install_theme_fail', {
+                        reason: vm.kind === 'remote' ? 'network' : 'unknown',
+                    }),
+                    { type: 'warn' },
+                );
                 throw err;
             } finally {
                 store.set(installingHashAtom, (prev) => {
                     const next = new Set(prev);
-                    next.delete(vm.item.hash);
+                    next.delete(vm.installKey);
                     return next;
                 });
             }
@@ -186,13 +315,12 @@ export default function RemoteThemes() {
         [installedPacks, t],
     );
 
-    const handleInstall = useCallback(
-        (vm: IRemoteThemeViewModel) => doInstall(vm, true),
-        [doInstall],
-    );
+    const handleInstall = useCallback((vm: ThemeMarketViewModel) => doInstall(vm, true), [
+        doInstall,
+    ]);
 
-    const handleDownloadOnly = useCallback(
-        (vm: IRemoteThemeViewModel) => doInstall(vm, false),
+    const handleSecondaryAction = useCallback(
+        (vm: ThemeMarketViewModel) => doInstall(vm, false),
         [doInstall],
     );
 
@@ -244,25 +372,33 @@ export default function RemoteThemes() {
             )}
             <div className="remote-themes__grid">
                 {filteredThemes.map((vm) => {
-                    const installed = installedPacks.find((p) => p.name === vm.item.name);
+                    const installed = installedPacks.find((pack) => pack.name === vm.item.name);
                     const isActive = currentPack?.name === vm.item.name;
                     const hasUpdate =
-                        installed &&
+                        vm.kind === 'remote' &&
+                        !!installed &&
                         !installed.builtin &&
                         (installed.version && vm.item.version
                             ? installed.version !== vm.item.version
                             : installed.hash !== vm.item.hash);
-                    const needsDownload = !installed || hasUpdate;
-                    const isInstalling = installingHashes.has(vm.item.hash);
+                    const needsInstall = !installed || hasUpdate;
+                    const isInstalling = installingHashes.has(vm.installKey);
                     const installLabel = hasUpdate
                         ? t('theme.update_theme')
                         : installed
                           ? t('theme.use_theme')
-                          : t('theme.download_and_use');
+                          : vm.kind === 'remote'
+                            ? t('theme.download_and_use')
+                            : t('theme.install_theme');
+                    const secondaryLabel = hasUpdate
+                        ? t('theme.update_only')
+                        : vm.kind === 'remote'
+                          ? t('theme.download_only')
+                          : t('theme.install_theme');
 
                     return (
                         <ThemeCard
-                            key={vm.item.hash}
+                            key={vm.key}
                             name={vm.item.name}
                             author={vm.item.author}
                             active={isActive}
@@ -280,7 +416,7 @@ export default function RemoteThemes() {
                                     size="sm"
                                     loading={isInstalling}
                                     icon={
-                                        needsDownload ? (
+                                        needsInstall ? (
                                             <Download width={14} height={14} />
                                         ) : (
                                             <Palette width={14} height={14} />
@@ -291,15 +427,11 @@ export default function RemoteThemes() {
                                         if (installed && !hasUpdate) {
                                             handleUse(installed);
                                         } else {
-                                            handleDownloadOnly(vm);
+                                            handleSecondaryAction(vm);
                                         }
                                     }}
                                 >
-                                    {hasUpdate
-                                        ? t('theme.update_only')
-                                        : needsDownload
-                                          ? t('theme.download_only')
-                                          : t('theme.use_theme')}
+                                    {installed && !hasUpdate ? t('theme.use_theme') : secondaryLabel}
                                 </Button>
                             }
                             onClick={() => {
@@ -316,13 +448,12 @@ export default function RemoteThemes() {
                                             ? () => handleUse(installed)
                                             : () => handleInstall(vm),
                                     installLabel,
-                                    needsDownload,
-                                    ...(needsDownload && {
-                                        onDownloadOnly: () => handleDownloadOnly(vm),
-                                        downloadOnlyLabel: hasUpdate
-                                            ? t('theme.update_only')
-                                            : t('theme.download_only'),
-                                    }),
+                                    needsDownload: vm.kind === 'remote' && needsInstall,
+                                    ...(vm.kind === 'remote' &&
+                                        needsInstall && {
+                                            onDownloadOnly: () => handleSecondaryAction(vm),
+                                            downloadOnlyLabel: secondaryLabel,
+                                        }),
                                 });
                             }}
                             onContextMenu={(e) => {
@@ -342,13 +473,12 @@ export default function RemoteThemes() {
                                                 ? () => handleUse(installed)
                                                 : () => handleInstall(vm),
                                         installLabel,
-                                        needsDownload,
-                                        ...(needsDownload && {
-                                            onDownloadOnly: () => handleDownloadOnly(vm),
-                                            downloadOnlyLabel: hasUpdate
-                                                ? t('theme.update_only')
-                                                : t('theme.download_only'),
-                                        }),
+                                        needsDownload: vm.kind === 'remote' && needsInstall,
+                                        ...(vm.kind === 'remote' &&
+                                            needsInstall && {
+                                                onDownloadOnly: () => handleSecondaryAction(vm),
+                                                downloadOnlyLabel: secondaryLabel,
+                                            }),
                                     },
                                 );
                             }}

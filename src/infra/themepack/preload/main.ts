@@ -29,6 +29,7 @@ import {
     THEMEPACK_IFRAME_NODE_ID,
     THEMEPACK_DIR_NAME,
     BUILTIN_THEME_DIR_NAME,
+    CURATED_THEME_DIR_NAME,
     IPC,
     CONTEXT_BRIDGE_KEY,
 } from '../common/constant';
@@ -44,6 +45,12 @@ const themePackBasePath: string = path.resolve(
 const builtinThemeBasePath: string = path.resolve(
     globalThis.globalContext.appPath.res,
     BUILTIN_THEME_DIR_NAME,
+);
+
+/** 本地策展主题资源目录（位于 app 资源目录下，用于主题市场的“可安装”主题） */
+const curatedThemeBasePath: string = path.resolve(
+    globalThis.globalContext.appPath.res,
+    CURATED_THEME_DIR_NAME,
 );
 
 // ─── 安全工具 ───
@@ -64,7 +71,16 @@ function isSubPath(targetPath: string, parentDir: string): boolean {
 function validateThemePackPath(themePackPath: string): boolean {
     return (
         isSubPath(themePackPath, themePackBasePath) ||
-        isSubPath(themePackPath, builtinThemeBasePath)
+        isSubPath(themePackPath, builtinThemeBasePath) ||
+        isSubPath(themePackPath, curatedThemeBasePath)
+    );
+}
+
+/** 校验主题目录是否可作为“安装源” */
+function validateThemePackSourcePath(themePackPath: string): boolean {
+    return (
+        isSubPath(themePackPath, builtinThemeBasePath) ||
+        isSubPath(themePackPath, curatedThemeBasePath)
     );
 }
 
@@ -626,6 +642,37 @@ async function installThemePack(mfthemePath: string): Promise<IThemePack | null>
 }
 
 /**
+ * 从本地主题目录安装主题。
+ * 仅允许从应用资源目录下的 builtin / curated 目录复制，避免任意路径复制。
+ */
+async function installThemePackFromDirectory(sourceDirPath: string): Promise<IThemePack | null> {
+    let targetDir: string | undefined;
+    try {
+        await ensureBaseDir();
+
+        if (!validateThemePackSourcePath(sourceDirPath)) {
+            throw new Error('Invalid theme pack source path');
+        }
+
+        targetDir = path.resolve(themePackBasePath, nanoid(12));
+        await fsp.cp(sourceDirPath, targetDir, { recursive: true });
+
+        const themePack = await parseThemePack(targetDir);
+        if (!themePack) {
+            await fsp.rm(targetDir, { recursive: true, force: true });
+            return null;
+        }
+
+        return themePack;
+    } catch {
+        if (targetDir) {
+            await fsp.rm(targetDir, { recursive: true, force: true }).catch(() => {});
+        }
+        return null;
+    }
+}
+
+/**
  * 下载并安装远程 .mftheme 文件。
  * 限制最大下载大小为 50MB，防止恶意 URL 导致内存耗尽。
  */
@@ -686,6 +733,7 @@ const mod = {
     selectTheme,
     loadAllThemePacks,
     installThemePack,
+    installThemePackFromDirectory,
     installRemoteThemePack,
     uninstallThemePack,
 };

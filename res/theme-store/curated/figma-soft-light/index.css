@@ -1,0 +1,81 @@
+/*
+ * 柔雾白昼 (Soft Daylight)
+ */
+:root {
+    --color-bg-base: rgb(248, 244, 237);
+    --color-bg-sidebar: rgba(255, 250, 245, 0.72);
+    --color-bg-player: rgba(255, 252, 248, 0.92);
+    --color-bg-surface: rgba(123, 95, 74, 0.06);
+    --color-bg-surface-raised: rgba(255, 255, 255, 0.74);
+    --color-bg-drawer: rgba(252, 247, 241, 0.96);
+    --color-bg-overlay: rgba(60, 42, 27, 0.28);
+    --color-bg-modal: rgb(255, 251, 246);
+    --color-bg-popover: rgba(255, 250, 246, 0.98);
+    --color-bg-fullscreen: rgb(246, 241, 233);
+    --color-bg-placeholder: rgb(229, 220, 209);
+
+    --color-fill-brand: rgb(228, 108, 79);
+    --color-fill-brand-hover: rgba(228, 108, 79, 0.88);
+    --color-fill-brand-muted: rgba(228, 108, 79, 0.16);
+    --color-fill-neutral: rgba(119, 92, 72, 0.08);
+    --color-fill-neutral-hover: rgba(119, 92, 72, 0.14);
+    --color-fill-neutral-active: rgba(119, 92, 72, 0.18);
+    --color-fill-subtle: rgba(255, 255, 255, 0.54);
+    --color-fill-subtle-hover: rgba(255, 255, 255, 0.76);
+
+    --color-text-primary: rgb(52, 42, 34);
+    --color-text-secondary: rgb(121, 101, 84);
+    --color-text-muted: rgba(77, 61, 47, 0.7);
+    --color-text-placeholder: rgba(95, 74, 58, 0.45);
+    --color-text-disabled: rgba(95, 74, 58, 0.28);
+    --color-text-brand: rgb(196, 86, 58);
+    --color-text-on-brand: rgb(255, 249, 245);
+
+    --color-border-default: rgba(144, 112, 87, 0.16);
+    --color-border-subtle: rgba(144, 112, 87, 0.1);
+    --color-border-strong: rgba(144, 112, 87, 0.24);
+    --color-border-focus: rgba(228, 108, 79, 0.24);
+    --color-border-brand: rgba(228, 108, 79, 0.32);
+
+    --color-status-info-bg: rgba(233, 246, 248, 0.96);
+    --color-status-info-border: rgba(72, 160, 175, 0.24);
+    --color-status-info-text: rgb(37, 124, 139);
+    --color-status-warn-bg: rgba(255, 244, 219, 0.98);
+    --color-status-warn-border: rgba(214, 151, 47, 0.28);
+    --color-status-warn-text: rgb(162, 108, 22);
+    --color-status-warn-fill: rgb(173, 119, 31);
+    --color-status-danger-bg: rgba(252, 232, 228, 0.96);
+    --color-status-danger-border: rgba(228, 108, 79, 0.22);
+    --color-status-danger-text: rgb(196, 86, 58);
+    --color-status-danger-fill: rgb(196, 86, 58);
+    --color-status-success-text: rgb(76, 144, 98);
+    --color-favorite: rgb(222, 92, 114);
+
+    --bg-image:
+        radial-gradient(at 0% 0%, rgba(255, 209, 178, 0.42) 0px, transparent 48%),
+        radial-gradient(at 100% 12%, rgba(163, 216, 209, 0.2) 0px, transparent 42%),
+        radial-gradient(at 90% 100%, rgba(255, 188, 166, 0.18) 0px, transparent 38%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+
+    --radius-control: 10px;
+    --radius-card: 18px;
+    --radius-panel: 24px;
+    --radius-modal: 28px;
+    --radius-artwork: 28px;
+
+    --shadow-xs: 0 1px 2px rgba(117, 89, 65, 0.06);
+    --shadow-sm: 0 12px 24px rgba(166, 126, 96, 0.12);
+    --shadow-md: 0 18px 40px rgba(166, 126, 96, 0.16);
+    --shadow-lg: 0 28px 56px rgba(166, 126, 96, 0.18);
+    --shadow-xl: 0 38px 80px rgba(166, 126, 96, 0.22);
+    --shadow-up: 0 -12px 24px rgba(166, 126, 96, 0.12);
+    --shadow-left: -16px 0 36px rgba(166, 126, 96, 0.12);
+
+    --blur-xs: 10px;
+    --blur-sm: 16px;
+    --blur-md: 24px;
+    --blur-lg: 36px;
+    --blur-xl: 52px;
+    --blur-overlay: 18px;
+    --blur-ambient: 120px;
+}

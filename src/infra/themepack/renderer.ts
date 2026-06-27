@@ -25,6 +25,7 @@ interface IMod {
     selectTheme(themePack: IThemePack | null): Promise<void>;
     loadAllThemePacks(): Promise<IThemePack[]>;
     installThemePack(mfthemePath: string): Promise<IThemePack | null>;
+    installThemePackFromDirectory(themePackDirPath: string): Promise<IThemePack | null>;
     installRemoteThemePack(remoteUrl: string): Promise<IThemePack | null>;
     uninstallThemePack(themePack: IThemePack): Promise<void>;
 }
@@ -77,6 +78,19 @@ class ThemePackRenderer {
     }
 
     /**
+     * 从本地主题目录安装主题包。
+     * 主要用于应用内策展主题市场。
+     */
+    public async installThemePackFromDirectory(
+        themePackDirPath: string,
+        replaceHash?: string,
+    ): Promise<IThemePack | null> {
+        const tp = await mod.installThemePackFromDirectory(themePackDirPath);
+        if (!tp) return null;
+        return this.finalizeInstalledThemePack(tp, replaceHash);
+    }
+
+    /**
      * 下载并安装远程 .mftheme 主题包。
      * @param url 远程主题包 URL
      * @param replaceHash 如果提供，安装成功后卸载此 hash 对应的旧版本
@@ -86,44 +100,9 @@ class ThemePackRenderer {
         url: string,
         replaceHash?: string,
     ): Promise<IThemePack | null> {
-        // 先安装新版本
         const tp = await mod.installRemoteThemePack(url);
         if (!tp) return null;
-
-        // 安装成功后再卸载旧版本（避免下载失败时丢失旧主题）
-        if (replaceHash) {
-            const old = defaultStore.get(allThemePacksAtom).find((t) => t.hash === replaceHash);
-            if (old) {
-                if (old.builtin) {
-                    // 内置主题不可卸载，直接追加新版本
-                    defaultStore.set(allThemePacksAtom, (prev) => [...prev, tp]);
-                } else {
-                    try {
-                        await mod.uninstallThemePack(old);
-                        // 乐观更新：移除旧版本、追加新版本
-                        defaultStore.set(allThemePacksAtom, (prev) => [
-                            ...prev.filter((t) => t.path !== old.path),
-                            tp,
-                        ]);
-                        // 如果替换的是当前活动主题，切换到新版本
-                        const current = defaultStore.get(currentThemePackAtom);
-                        if (current?.path === old.path) {
-                            await this.selectTheme(tp);
-                        }
-                    } catch {
-                        // 卸载旧版本失败，回退到全量重载
-                        await this.loadAllThemePacks();
-                    }
-                }
-            } else {
-                // 旧版本未找到（可能列表未加载），直接追加
-                defaultStore.set(allThemePacksAtom, (prev) => [...prev, tp]);
-            }
-        } else {
-            defaultStore.set(allThemePacksAtom, (prev) => [...prev, tp]);
-        }
-
-        return tp;
+        return this.finalizeInstalledThemePack(tp, replaceHash);
     }
 
     /**
@@ -169,6 +148,40 @@ class ThemePackRenderer {
             this.initialLoadPromise = this.loadAllThemePacks();
         }
         return this.initialLoadPromise;
+    }
+
+    private async finalizeInstalledThemePack(
+        tp: IThemePack,
+        replaceHash?: string,
+    ): Promise<IThemePack> {
+        if (replaceHash) {
+            const old = defaultStore.get(allThemePacksAtom).find((t) => t.hash === replaceHash);
+            if (old) {
+                if (old.builtin) {
+                    defaultStore.set(allThemePacksAtom, (prev) => [...prev, tp]);
+                } else {
+                    try {
+                        await mod.uninstallThemePack(old);
+                        defaultStore.set(allThemePacksAtom, (prev) => [
+                            ...prev.filter((t) => t.path !== old.path),
+                            tp,
+                        ]);
+                        const current = defaultStore.get(currentThemePackAtom);
+                        if (current?.path === old.path) {
+                            await this.selectTheme(tp);
+                        }
+                    } catch {
+                        await this.loadAllThemePacks();
+                    }
+                }
+            } else {
+                defaultStore.set(allThemePacksAtom, (prev) => [...prev, tp]);
+            }
+        } else {
+            defaultStore.set(allThemePacksAtom, (prev) => [...prev, tp]);
+        }
+
+        return tp;
     }
 }
 

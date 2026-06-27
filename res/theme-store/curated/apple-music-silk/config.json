@@ -1,0 +1,9 @@
+{
+    "name": "Silk Motion",
+    "preview": "@/thumb.svg",
+    "thumb": "@/thumb.svg",
+    "author": "raclen",
+    "authorUrl": "https://openai.com",
+    "version": "1.0.0",
+    "description": "更偏 Apple Music 风的丝滑浅色主题，半透明分层、克制留白和柔和桃粉强调色"
+}

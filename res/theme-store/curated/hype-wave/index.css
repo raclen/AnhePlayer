@@ -1,0 +1,69 @@
+:root {
+    --color-bg-base: rgb(16, 16, 14);
+    --color-bg-sidebar: rgba(18, 18, 16, 0.82);
+    --color-bg-player: rgba(15, 15, 14, 0.92);
+    --color-bg-surface: rgba(255, 255, 255, 0.06);
+    --color-bg-surface-raised: rgba(31, 31, 27, 0.9);
+    --color-bg-drawer: rgba(14, 14, 12, 0.97);
+    --color-bg-overlay: rgba(7, 7, 6, 0.72);
+    --color-bg-modal: rgb(22, 22, 19);
+    --color-bg-popover: rgba(22, 22, 19, 0.98);
+    --color-bg-fullscreen: rgb(12, 12, 10);
+    --color-bg-placeholder: rgb(40, 40, 34);
+
+    --color-fill-brand: rgb(198, 255, 44);
+    --color-fill-brand-hover: rgba(198, 255, 44, 0.9);
+    --color-fill-brand-muted: rgba(198, 255, 44, 0.16);
+    --color-fill-neutral: rgba(255, 255, 255, 0.1);
+    --color-fill-neutral-hover: rgba(255, 255, 255, 0.16);
+    --color-fill-neutral-active: rgba(255, 255, 255, 0.22);
+    --color-fill-subtle: rgba(255, 255, 255, 0.04);
+    --color-fill-subtle-hover: rgba(255, 255, 255, 0.08);
+
+    --color-text-primary: rgb(248, 249, 239);
+    --color-text-secondary: rgb(170, 173, 150);
+    --color-text-muted: rgba(248, 249, 239, 0.68);
+    --color-text-placeholder: rgba(248, 249, 239, 0.42);
+    --color-text-disabled: rgba(248, 249, 239, 0.26);
+    --color-text-brand: rgb(198, 255, 44);
+    --color-text-on-brand: rgb(21, 24, 8);
+
+    --color-border-default: rgba(255, 255, 255, 0.1);
+    --color-border-subtle: rgba(255, 255, 255, 0.06);
+    --color-border-strong: rgba(255, 255, 255, 0.18);
+    --color-border-focus: rgba(198, 255, 44, 0.32);
+    --color-border-brand: rgba(198, 255, 44, 0.28);
+
+    --color-status-info-bg: rgba(20, 28, 22, 0.96);
+    --color-status-info-border: rgba(83, 215, 160, 0.26);
+    --color-status-info-text: rgb(104, 232, 178);
+    --color-status-warn-bg: rgba(44, 36, 14, 0.96);
+    --color-status-warn-border: rgba(255, 205, 77, 0.3);
+    --color-status-warn-text: rgb(255, 214, 104);
+    --color-status-warn-fill: rgb(255, 205, 77);
+    --color-status-danger-bg: rgba(52, 18, 23, 0.96);
+    --color-status-danger-border: rgba(255, 110, 141, 0.28);
+    --color-status-danger-text: rgb(255, 145, 168);
+    --color-status-danger-fill: rgb(255, 110, 141);
+    --color-status-success-text: rgb(132, 235, 114);
+    --color-favorite: rgb(255, 110, 141);
+
+    --bg-image:
+        radial-gradient(at 0% 100%, rgba(198, 255, 44, 0.18) 0px, transparent 36%),
+        radial-gradient(at 100% 0%, rgba(255, 89, 130, 0.16) 0px, transparent 28%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+
+    --radius-control: 10px;
+    --radius-card: 14px;
+    --radius-panel: 18px;
+    --radius-modal: 22px;
+    --radius-artwork: 24px;
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.22);
+    --shadow-sm: 0 12px 24px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 18px 40px rgba(0, 0, 0, 0.38);
+    --shadow-lg: 0 28px 56px rgba(0, 0, 0, 0.46);
+    --shadow-xl: 0 38px 82px rgba(0, 0, 0, 0.52);
+    --shadow-up: 0 -12px 22px rgba(0, 0, 0, 0.28);
+    --shadow-left: -14px 0 32px rgba(0, 0, 0, 0.28);
+}
