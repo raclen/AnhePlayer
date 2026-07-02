@@ -27,9 +27,7 @@ const linuxIcon = {
 
 const config: ForgeConfig = {
     packagerConfig: {
-        asar: {
-            unpack: '**/node_modules/{sharp,@img}/**/*',
-        },
+        asar: true,
         appBundleId: 'cn.anhe.player',
         icon: path.resolve(__dirname, 'res/logo'),
         executableName: 'anhe-player',
@@ -104,7 +102,7 @@ const config: ForgeConfig = {
         {
             name: '@timfish/forge-externals-plugin',
             config: {
-                externals: ['sharp', 'better-sqlite3'],
+                externals: ['better-sqlite3'],
                 includeDeps: true,
             },
         },

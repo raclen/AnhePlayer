@@ -38,6 +38,8 @@ jobs:
                   $version = node -p "require('./package.json').version"
                   echo "VERSION=$version" >> $env:GITHUB_ENV
             - run: pnpm run package
+            - name: Optimize Windows package size
+              run: node ./scripts/optimize-package.mjs ./out/AnhePlayer-win32-x64
             - name: Prepare Inno Setup package directory
               run: |
                   $packageDir = "./out/AnhePlayer-win32-x64"
@@ -111,6 +113,8 @@ jobs:
             - name: Install Electron 22
               run: pnpm add electron@22 --save-dev -w
             - run: pnpm run package
+            - name: Optimize Windows legacy package size
+              run: node ./scripts/optimize-package.mjs ./out/AnhePlayer-win32-x64
             - name: Prepare Inno Setup package directory
               run: |
                   $packageDir = "./out/AnhePlayer-win32-x64"
@@ -208,7 +212,23 @@ jobs:
               run: |
                   VERSION=$(node -p "require('./package.json').version")
                   echo "VERSION=$VERSION" >> $GITHUB_ENV
-            - run: pnpm run make -- --arch=arm64
+            - name: Run pnpm run make
+              run: |
+                  set +e
+                  for attempt in 1 2 3; do
+                    echo "macOS arm64 make attempt $attempt"
+                    pnpm run make -- --arch=arm64
+                    status=$?
+                    if [ "$status" -eq 0 ]; then
+                      exit 0
+                    fi
+
+                    echo "::warning::macOS arm64 make failed with status $status; cleaning DMG mount state before retry"
+                    hdiutil detach /Volumes/AnhePlayer -force || true
+                    rm -f ./out/make/*.dmg
+                    sleep 10
+                  done
+                  exit "$status"
             - name: Rename DMG
               run: |
                   DMG_FILE=$(find ./out/make -maxdepth 1 -name "*.dmg" | head -1)

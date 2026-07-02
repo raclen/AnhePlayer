@@ -24,7 +24,7 @@ import type {
     TrayMenuEvent,
     EventPayload,
 } from '@main/native_modules/CustomTrayMenu/CustomTrayMenu.node';
-import { app } from 'electron';
+import { app, nativeImage } from 'electron';
 import appSync from '@infra/appSync/main';
 import appConfig from '@infra/appConfig/main';
 import i18n from '@infra/i18n/main';
@@ -362,25 +362,45 @@ class NativeTrayMenu {
             buffer = await this.getDefaultCover();
         }
 
-        const { default: sharp } = await import('sharp');
-        const result = await sharp(buffer)
-            .resize(COVER_SIZE, COVER_SIZE, { fit: 'cover' })
-            .ensureAlpha(1)
-            .raw()
-            .toBuffer({ resolveWithObject: true });
+        try {
+            return this.toCoverResult(buffer);
+        } catch {
+            // 部分非常规封面格式可能无法被 Electron 原生解码，回退默认封面。
+            return this.toCoverResult(await this.getDefaultCover());
+        }
+    }
 
-        // RGBA → BGRA：交换 R 和 B 通道
-        const data = result.data;
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            data[i] = data[i + 2];
-            data[i + 2] = r;
+    /**
+     * 使用 Electron nativeImage 将图片解码、居中裁剪并缩放为 BGRA32。
+     *
+     * 这样可以移除 sharp/libvips 这组重依赖，显著降低 Windows 安装体积。
+     */
+    private toCoverResult(buffer: Buffer): CoverResult {
+        const image = nativeImage.createFromBuffer(buffer);
+        if (image.isEmpty()) {
+            throw new Error('Invalid cover image');
         }
 
+        const { width, height } = image.getSize();
+        const scale = Math.max(COVER_SIZE / width, COVER_SIZE / height);
+        const resizedWidth = Math.max(COVER_SIZE, Math.round(width * scale));
+        const resizedHeight = Math.max(COVER_SIZE, Math.round(height * scale));
+        const resized = image.resize({
+            width: resizedWidth,
+            height: resizedHeight,
+            quality: 'best',
+        });
+        const cropped = resized.crop({
+            x: Math.max(0, Math.floor((resizedWidth - COVER_SIZE) / 2)),
+            y: Math.max(0, Math.floor((resizedHeight - COVER_SIZE) / 2)),
+            width: COVER_SIZE,
+            height: COVER_SIZE,
+        });
+
         return {
-            data,
-            width: result.info.width,
-            height: result.info.height,
+            data: cropped.toBitmap(),
+            width: COVER_SIZE,
+            height: COVER_SIZE,
         };
     }
 

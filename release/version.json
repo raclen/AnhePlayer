@@ -1,11 +1,11 @@
 {
-  "version": "1.0.11",
+  "version": "1.0.12",
   "changeLog": [
-    "新增 5 套主题市场策展主题，覆盖 Figma 风、Apple Music 风、Linear / Raycast 风和潮流音乐产品风",
-    "主题市场改为本地策展主题优先展示，并支持直接安装，避免外网不可用时一直停留在加载中",
-    "本地内置主题作者信息统一更新为 raclen，主题页与 README 文档同步对齐",
-    "更新 README 中的主题包说明，补充主题市场当前可安装的主题风格介绍",
-    "保留原有远程主题市场能力，并继续支持在线主题下载安装"
+    "优化 Windows 安装体积，移除 sharp/libvips 重依赖并改用 Electron 原生图片处理",
+    "Windows 打包流程新增产物清理，删除未使用语言包和非运行时文件，降低安装后占用",
+    "增强 Windows 安装包压缩配置，并清理重复打包规则",
+    "修复自定义托盘菜单加载失败后的回退逻辑，避免启动时反复尝试异常原生模块",
+    "修正自定义托盘菜单设置项默认状态，默认使用更稳定的系统托盘菜单"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"

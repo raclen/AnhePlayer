@@ -169,7 +169,7 @@ export function GeneralSection() {
                     description={t('settings.general.custom_tray_menu_desc')}
                     control={
                         <Toggle
-                            checked={useCustomTrayMenu ?? true}
+                            checked={useCustomTrayMenu ?? false}
                             onChange={setUseCustomTrayMenu}
                         />
                     }

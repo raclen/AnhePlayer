@@ -37,6 +37,39 @@ const THUMB_SIZE = 106;
 /** 专辑封面下载超时（毫秒） */
 const ARTWORK_FETCH_TIMEOUT_MS = 5000;
 
+function toRgbaBitmap(buffer: Buffer, size: number): Buffer {
+    const image = nativeImage.createFromBuffer(buffer);
+    if (image.isEmpty()) {
+        throw new Error('Invalid thumb image');
+    }
+
+    const { width, height } = image.getSize();
+    const scale = Math.max(size / width, size / height);
+    const resizedWidth = Math.max(size, Math.round(width * scale));
+    const resizedHeight = Math.max(size, Math.round(height * scale));
+    const resized = image.resize({
+        width: resizedWidth,
+        height: resizedHeight,
+        quality: 'best',
+    });
+    const cropped = resized.crop({
+        x: Math.max(0, Math.floor((resizedWidth - size) / 2)),
+        y: Math.max(0, Math.floor((resizedHeight - size) / 2)),
+        width: size,
+        height: size,
+    });
+
+    // Electron nativeImage.toBitmap() 在 Windows 上返回 BGRA，
+    // TaskbarManager 的接口约定为 RGBA，这里交换 R/B 通道。
+    const data = Buffer.from(cropped.toBitmap());
+    for (let i = 0; i < data.length; i += 4) {
+        const b = data[i];
+        data[i] = data[i + 2];
+        data[i + 2] = b;
+    }
+    return data;
+}
+
 // ─── AppThumbar 实现 ───
 
 class AppThumbar {
@@ -347,14 +380,14 @@ class AppThumbar {
                 buffer = await this.getDefaultAlbumCover();
             }
 
-            const { default: sharp } = await import('sharp');
-            const result = await sharp(buffer)
-                .resize(THUMB_SIZE, THUMB_SIZE, { fit: 'cover' })
-                .ensureAlpha(1)
-                .raw()
-                .toBuffer({ resolveWithObject: true });
+            let rgba: Buffer;
+            try {
+                rgba = toRgbaBitmap(buffer, THUMB_SIZE);
+            } catch {
+                rgba = toRgbaBitmap(await this.getDefaultAlbumCover(), THUMB_SIZE);
+            }
 
-            ttm.sendIconicRepresentation({ width: THUMB_SIZE, height: THUMB_SIZE }, result.data);
+            ttm.sendIconicRepresentation({ width: THUMB_SIZE, height: THUMB_SIZE }, rgba);
         } catch (ex) {
             logger.error('Failed to set thumb image', ex);
         }

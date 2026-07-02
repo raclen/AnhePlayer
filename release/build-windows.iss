@@ -37,7 +37,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\out
 OutputBaseFilename=AnhePlayerSetup
 SetupIconFile=..\res\logo.ico
-Compression=lzma
+Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 
@@ -49,7 +49,6 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.i
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "{#MyAppPackageDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppPackageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 

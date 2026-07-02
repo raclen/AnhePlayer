@@ -96,6 +96,14 @@ class AppTray {
             appConfig.getConfigByKey('normal.useCustomTrayMenu') !== false
         ) {
             this.nativeTrayMenu = await NativeTrayMenu.create(windowManager);
+
+            // 原生托盘菜单加载失败时，自动回退到 Electron 标准菜单，
+            // 并将配置落盘为 false，避免下次启动继续重复触发失败。
+            if (!this.nativeTrayMenu) {
+                appConfig.setConfig({
+                    'normal.useCustomTrayMenu': false,
+                });
+            }
         }
 
         if (this.nativeTrayMenu) {
