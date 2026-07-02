@@ -1,11 +1,8 @@
 {
-  "version": "1.0.12",
+  "version": "1.0.13",
   "changeLog": [
-    "优化 Windows 安装体积，移除 sharp/libvips 重依赖并改用 Electron 原生图片处理",
-    "Windows 打包流程新增产物清理，删除未使用语言包和非运行时文件，降低安装后占用",
-    "增强 Windows 安装包压缩配置，并清理重复打包规则",
-    "修复自定义托盘菜单加载失败后的回退逻辑，避免启动时反复尝试异常原生模块",
-    "修正自定义托盘菜单设置项默认状态，默认使用更稳定的系统托盘菜单"
+    "更新应用图标为日系极简手写字母 A 风格",
+    "同步刷新 Windows、macOS、Linux 图标资源，保证安装包与托盘图标一致"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"
