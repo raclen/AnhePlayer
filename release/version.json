@@ -1,8 +1,8 @@
 {
-  "version": "1.0.14",
+  "version": "1.0.15",
   "changeLog": [
-    "修复 Windows 安装后桌面和开始菜单快捷方式可能继续显示旧 H 图标的问题",
-    "安装器快捷方式显式使用新版 logo.ico，减少 Windows 图标缓存导致的显示异常"
+    "排行榜新增 QQ 音乐和酷狗音乐支持，可浏览榜单及分页加载榜单歌曲",
+    "热门歌单新增 QQ 音乐和酷狗音乐支持，可按分类标签筛选并浏览歌单详情"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"
