@@ -1,8 +1,8 @@
 {
-  "version": "1.0.15",
+  "version": "1.0.16",
   "changeLog": [
-    "排行榜新增 QQ 音乐和酷狗音乐支持，可浏览榜单及分页加载榜单歌曲",
-    "热门歌单新增 QQ 音乐和酷狗音乐支持，可按分类标签筛选并浏览歌单详情"
+    "修正关于页面的作者信息为 raclen，并关联正确的 GitHub 主页",
+    "清理关于页面中已失效的旧作者社交渠道与相关展示"
   ],
   "download": [
     "https://r0rvr854dd1.feishu.cn/drive/folder/IrVEfD67KlWZGkdqwjecLHFNnBb?from=from_copylink"
