@@ -462,14 +462,6 @@
         gap: var(--space-20);
     }
 
-    &__about-wechat-banner {
-        flex-shrink: 0;
-        width: 340px;
-        height: auto;
-        border-radius: var(--radius-control);
-        object-fit: contain;
-    }
-
     &__about-social-list {
         display: flex;
         flex-direction: column;
@@ -520,29 +512,6 @@
     }
 }
 
-// ── 猫头飘浮动画 ──
-
 .p-setting__author-value {
-    position: relative;
     cursor: pointer;
-    user-select: none;
-}
-
-.p-setting__cat-float {
-    position: absolute;
-    bottom: 100%;
-    font-size: var(--icon-lg);
-    pointer-events: none;
-    animation: cat-float 1s var(--ease-standard) forwards;
-}
-
-@keyframes cat-float {
-    0% {
-        opacity: 1;
-        transform: translateY(0);
-    }
-    100% {
-        opacity: 0;
-        transform: translateY(-48px);
-    }
 }
