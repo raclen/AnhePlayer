@@ -10,7 +10,7 @@ use commands::{
     global_context::*,
     http_proxy::*,
     local_meta::*,
-    lyric_window::{self, sync_lyric_window},
+    lyric_window::{self, sync_lyric_window, LyricWindowState},
     netease::*,
     system_util::*,
     webdav::*,
