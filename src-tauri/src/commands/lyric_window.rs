@@ -87,7 +87,8 @@ pub fn init_lyric_window(app: &AppHandle) {
             }
             let latest = {
                 let state = app_handle.state::<LyricWindowState>();
-                state.latest.lock().unwrap().take()
+                let taken = state.latest.lock().unwrap().take();
+                taken
             };
             if let Some(placement) = latest {
                 write_placement(&app_handle, placement);
@@ -117,7 +118,8 @@ pub fn handle_lyric_window_event(window: &Window, event: &WindowEvent) {
             {
                 let state = app.state::<LyricWindowState>();
                 *state.latest.lock().unwrap() = Some(placement);
-                if let Some(tx) = state.saver_tx.lock().unwrap().as_ref() {
+                let sender = state.saver_tx.lock().unwrap().clone();
+                if let Some(tx) = sender {
                     let _ = tx.send(());
                 }
             }
@@ -357,15 +359,17 @@ fn write_placement(app: &AppHandle, placement: Placement) {
 
 fn suppress_placement_save(app: &AppHandle) {
     let state = app.state::<LyricWindowState>();
-    *state.suppress_until.lock().unwrap() = Some(Instant::now() + PLACEMENT_SUPPRESS);
+    let until = Instant::now() + PLACEMENT_SUPPRESS;
+    *state.suppress_until.lock().unwrap() = Some(until);
 }
 
 fn is_suppressed(app: &AppHandle) -> bool {
     let state = app.state::<LyricWindowState>();
-    state
+    let suppressed = state
         .suppress_until
         .lock()
         .unwrap()
         .map(|until| Instant::now() < until)
-        .unwrap_or(false)
+        .unwrap_or(false);
+    suppressed
 }

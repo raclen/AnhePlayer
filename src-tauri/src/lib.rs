@@ -1,8 +1,18 @@
 mod commands;
 
 use commands::{
-    app_config::*, audio_tag::*, dialog::*, download::*, forwarder::*, fs_util::*,
-    global_context::*, http_proxy::*, local_meta::*, lyric_window::*, netease::*, system_util::*,
+    app_config::{self, app_config_reset, app_config_set, app_config_sync},
+    audio_tag::*,
+    dialog::*,
+    download::*,
+    forwarder::*,
+    fs_util::*,
+    global_context::*,
+    http_proxy::*,
+    local_meta::*,
+    lyric_window::{self, sync_lyric_window},
+    netease::*,
+    system_util::*,
     webdav::*,
 };
 use tauri::{
