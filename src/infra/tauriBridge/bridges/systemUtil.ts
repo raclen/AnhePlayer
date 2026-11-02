@@ -97,6 +97,17 @@ export function registerSystemUtilBridge(): void {
             toggleMinimode: () => {
                 tauriInvoke('toggle_minimode').catch(console.error);
             },
+            syncLyricWindow: (options: {
+                enabled: boolean;
+                alwaysOnTop: boolean;
+                locked: boolean;
+            }) => {
+                tauriInvoke('sync_lyric_window', {
+                    enabled: options.enabled,
+                    alwaysOnTop: options.alwaysOnTop,
+                    locked: options.locked,
+                }).catch(console.error);
+            },
         },
         shell: {
             openExternal: (url: string) => {

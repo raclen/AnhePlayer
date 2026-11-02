@@ -58,6 +58,7 @@ interface IMod {
         enterMinimode(): void;
         exitMinimode(): void;
         toggleMinimode(): void;
+        syncLyricWindow(options: { enabled: boolean; alwaysOnTop: boolean; locked: boolean }): void;
     };
     shell: {
         openExternal(url: string): void;
@@ -137,6 +138,18 @@ class SystemUtilRenderer {
     /** 切换迷你模式 */
     public toggleMinimode(): void {
         mod.window.toggleMinimode();
+    }
+
+    /**
+     * 按配置同步桌面歌词窗口（显隐 / 置顶 / 点击穿透 / 位置恢复）。
+     * 由主窗口的桌面歌词控制器在配置变化时调用。
+     */
+    public syncLyricWindow(options: {
+        enabled: boolean;
+        alwaysOnTop: boolean;
+        locked: boolean;
+    }): void {
+        mod.window.syncLyricWindow(options);
     }
 
     // ─── Shell ───

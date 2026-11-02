@@ -39,11 +39,21 @@
                 "url": "/lyricWindow.html",
                 "width": 800,
                 "height": 160,
+                "minWidth": 320,
+                "minHeight": 80,
                 "decorations": false,
                 "transparent": true,
+                "backgroundColor": "#00000000",
                 "alwaysOnTop": true,
                 "visible": false,
-                "resizable": true
+                "resizable": true,
+                "maximizable": false,
+                "minimizable": false,
+                "closable": false,
+                "skipTaskbar": true,
+                "focus": false,
+                "shadow": false,
+                "noRedirectionBitmap": true
             },
             {
                 "label": "minimode",

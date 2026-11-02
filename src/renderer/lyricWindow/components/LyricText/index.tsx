@@ -19,6 +19,7 @@ export default memo(function LyricText() {
     const { t } = useTranslation();
     const currentMusic = useAppStatePartial('musicItem');
     const currentLrc = useAppStatePartial('currentLrc');
+    const fullLyric = useAppStatePartial('fullLyric');
 
     const [fontData] = useConfigValue('lyric.fontData');
     const [fontSize] = useConfigValue('lyric.fontSize');
@@ -77,7 +78,6 @@ export default memo(function LyricText() {
     // 歌词切换时重置滚动位置
     useLayoutEffect(() => {
         if (textWidth > containerWidth) {
-            console.log(textWidth, containerWidth);
             setEnableTransition(false);
             setLeft(0);
         } else {
@@ -89,6 +89,10 @@ export default memo(function LyricText() {
     const currentLrcRef = useRef(currentLrc);
     currentLrcRef.current = currentLrc;
 
+    // 全量歌词用于计算当前行的真实时长，避免用固定值估算滚动速度
+    const fullLyricRef = useRef(fullLyric);
+    fullLyricRef.current = fullLyric;
+
     useEffect(() => {
         if (textWidth <= containerWidth) return;
 
@@ -98,10 +102,10 @@ export default memo(function LyricText() {
             if (!lrc || lrc.index < 0) return;
 
             const progress = changed.progress.currentTime;
-            // TODO: IAppState 尚未同步 fullLyric，无法获取下一行歌词时间，
-            //       暂用固定 5s 估算。待 IAppState 扩展后替换为实际差值。
-            const estimatedDuration = 5;
-            const virtualPointer = ((progress - lrc.time) / estimatedDuration) * textWidth;
+            const nextLine = fullLyricRef.current?.[lrc.index + 1];
+            const lineDuration =
+                nextLine && nextLine.time > lrc.time ? nextLine.time - lrc.time : 5;
+            const virtualPointer = ((progress - lrc.time) / lineDuration) * textWidth;
 
             if (virtualPointer > containerWidth * 0.5) {
                 setEnableTransition(true);
@@ -141,7 +145,7 @@ export default memo(function LyricText() {
         <div
             ref={containerRef}
             className={cn('lyric-text', needsScroll && 'is-scrollable')}
-            data-tauri-drag-region
+            data-tauri-drag-region="deep"
         >
             <div ref={contentRef} className="lyric-text__content" style={contentStyle}>
                 {displayText}

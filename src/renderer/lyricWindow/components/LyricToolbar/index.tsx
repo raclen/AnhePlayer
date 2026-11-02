@@ -8,7 +8,6 @@ import {
     Play,
     Pause,
     Lock,
-    LockOpen,
     X,
     Pin,
     PinOff,
@@ -20,50 +19,22 @@ import { PlayerState } from '@common/constant';
 import appSyncAuxiliary, { useAppStatePartial } from '@infra/appSync/renderer/auxiliary';
 import appConfig from '@infra/appConfig/renderer';
 import { useConfigValue } from '@renderer/common/hooks/useConfigValue';
-import systemUtil from '@infra/systemUtil/renderer';
 
 import './index.scss';
 
 interface LyricToolbarProps {
-    locked: boolean;
     visible: boolean;
 }
 
-export default function LyricToolbar({ locked, visible }: LyricToolbarProps) {
-    if (locked) {
-        return <LockedToolbar visible={visible} />;
-    }
+export default function LyricToolbar({ visible }: LyricToolbarProps) {
     return <UnlockedToolbar visible={visible} />;
-}
-
-/** 锁定态：仅显示解锁按钮 */
-function LockedToolbar({ visible }: { visible: boolean }) {
-    return (
-        <div className={cn('lyric-toolbar', visible && 'is-visible')}>
-            <button
-                className="lyric-toolbar__btn lyric-toolbar__btn--unlock"
-                type="button"
-                onMouseOver={() => {
-                    systemUtil.ignoreMouseEvent(false);
-                }}
-                onMouseLeave={() => {
-                    systemUtil.ignoreMouseEvent(true);
-                }}
-                onClick={() => {
-                    appConfig.setConfig({ 'lyric.lockLyric': false });
-                }}
-            >
-                <LockOpen size={16} />
-            </button>
-        </div>
-    );
 }
 
 const FONT_SIZE_MIN = 12;
 const FONT_SIZE_MAX = 80;
 const FONT_SIZE_STEP = 2;
 
-/** 解锁态：完整播放控制 + 置顶/字号 + 锁定 + 关闭 */
+/** 工具栏：播放控制 + 置顶/字号 + 锁定 + 关闭（锁定态整窗穿透，由 App 直接不渲染） */
 function UnlockedToolbar({ visible }: { visible: boolean }) {
     const playerState = useAppStatePartial('playerState');
     const isPlaying = playerState === PlayerState.Playing;

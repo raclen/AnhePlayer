@@ -12,6 +12,7 @@ interface IMod {
     onCommand(command: string, cb: (data: unknown, from: string) => void): () => void;
     sendCommand(command: string, data?: unknown): void;
     onSubscribe(cb: (windowType: string) => void): () => void;
+    setSnapshotProvider(getter: () => Partial<IAppState>): void;
 }
 
 const mod = window[CONTEXT_BRIDGE_KEY as any] as unknown as IMod;
@@ -43,6 +44,14 @@ const appSync = {
     /** 监听辅助窗口订阅事件，回调携带窗口类型 */
     onSubscribe(cb: (windowType: WindowType) => void): void {
         mod.onSubscribe(cb as (windowType: string) => void);
+    },
+
+    /**
+     * 注册状态快照提供者。
+     * 辅助窗口请求全量快照时（含启动早于主窗口推送的情况）由它取当前状态。
+     */
+    setSnapshotProvider(getter: () => Partial<IAppState>): void {
+        mod.setSnapshotProvider(getter);
     },
 };
 

@@ -2,27 +2,18 @@ mod commands;
 
 use commands::{
     app_config::*, audio_tag::*, dialog::*, download::*, forwarder::*, fs_util::*,
-    global_context::*, http_proxy::*, local_meta::*, netease::*, system_util::*,
+    global_context::*, http_proxy::*, local_meta::*, lyric_window::*, netease::*, system_util::*,
     webdav::*,
 };
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WindowEvent,
+    AppHandle, Listener, Manager, WindowEvent,
 };
 
 /// 从配置文件读取关闭行为。
 fn read_close_behavior() -> String {
-    let path = dirs::config_dir()
-        .map(|d| d.join("AnhePlayer").join("app-config.json"))
-        .unwrap_or_default();
-    let Ok(content) = std::fs::read_to_string(path) else {
-        return "minimize".to_string();
-    };
-    let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) else {
-        return "minimize".to_string();
-    };
-    config
+    app_config::read_config_value()
         .get("normal.closeBehavior")
         .and_then(|v| v.as_str())
         .unwrap_or("minimize")
@@ -48,6 +39,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(ForwarderPortState::default())
         .manage(DownloadCancelState::default())
+        .manage(LyricWindowState::default())
         .invoke_handler(tauri::generate_handler![
             // Global Context
             global_context_get,
@@ -71,6 +63,8 @@ pub fn run() {
             log_entry,
             get_cache_size,
             clear_cache,
+            // 桌面歌词窗口
+            sync_lyric_window,
             // Dialog
             show_open_dialog,
             show_save_dialog,
@@ -110,12 +104,33 @@ pub fn run() {
         ])
         .setup(|app| {
             commands::forwarder::init_forwarder(app.handle().clone());
+            lyric_window::init_lyric_window(app.handle());
 
             // ── 系统托盘 ──
             // 关闭按钮在「最小化」模式下只会隐藏窗口，必须提供托盘入口将其找回。
             let show_item = MenuItem::with_id(app, "tray-show", "显示主窗口", true, None::<&str>)?;
+            // 桌面歌词锁定时整窗鼠标穿透，托盘是唯一可靠的解锁入口
+            let lyric_item = CheckMenuItem::with_id(
+                app,
+                "tray-desktop-lyric",
+                "桌面歌词",
+                true,
+                app_config::get_config_bool("lyric.enableDesktopLyric", false),
+                None::<&str>,
+            )?;
+            let lock_lyric_item = CheckMenuItem::with_id(
+                app,
+                "tray-lock-lyric",
+                "锁定桌面歌词",
+                true,
+                app_config::get_config_bool("lyric.lockLyric", false),
+                None::<&str>,
+            )?;
             let exit_item = MenuItem::with_id(app, "tray-exit", "退出", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &exit_item])?;
+            let menu = Menu::with_items(
+                app,
+                &[&show_item, &lyric_item, &lock_lyric_item, &exit_item],
+            )?;
 
             let mut tray_builder = TrayIconBuilder::with_id("main-tray")
                 .menu(&menu)
@@ -124,6 +139,21 @@ pub fn run() {
                 .tooltip("AnhePlayer")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "tray-show" => restore_main_window(app),
+                    // 只写配置，窗口由主窗口控制器统一驱动，避免双驱动
+                    "tray-desktop-lyric" => {
+                        let next = !app_config::get_config_bool("lyric.enableDesktopLyric", false);
+                        let _ = app_config::patch_config(
+                            app,
+                            serde_json::json!({ "lyric.enableDesktopLyric": next }),
+                        );
+                    }
+                    "tray-lock-lyric" => {
+                        let next = !app_config::get_config_bool("lyric.lockLyric", false);
+                        let _ = app_config::patch_config(
+                            app,
+                            serde_json::json!({ "lyric.lockLyric": next }),
+                        );
+                    }
                     "tray-exit" => app.exit(0),
                     _ => {}
                 })
@@ -143,22 +173,60 @@ pub fn run() {
             }
             tray_builder.build(app)?;
 
+            // 任一入口（设置页 / 主窗口 / 歌词工具栏）改动配置后，同步托盘勾选状态
+            let lyric_for_config = lyric_item.clone();
+            let lock_for_config = lock_lyric_item.clone();
+            app.listen("app-config-update", move |event| {
+                let Ok(payload) = serde_json::from_str::<serde_json::Value>(event.payload()) else {
+                    return;
+                };
+                let Some(patch) = payload.get("patch") else {
+                    return;
+                };
+                if let Some(checked) = patch
+                    .get("lyric.enableDesktopLyric")
+                    .and_then(|v| v.as_bool())
+                {
+                    let _ = lyric_for_config.set_checked(checked);
+                }
+                if let Some(checked) = patch.get("lyric.lockLyric").and_then(|v| v.as_bool()) {
+                    let _ = lock_for_config.set_checked(checked);
+                }
+            });
+
+            // 启动时按磁盘配置对齐一次歌词窗口（隐藏状态下也会正确设置穿透与置顶）
+            let enabled = app_config::get_config_bool("lyric.enableDesktopLyric", false);
+            let always_on_top = app_config::get_config_bool("lyric.alwaysOnTop", true);
+            let locked = app_config::get_config_bool("lyric.lockLyric", false);
+            if let Err(err) = lyric_window::sync_lyric_window(
+                app.handle().clone(),
+                enabled,
+                always_on_top,
+                locked,
+            ) {
+                log::warn!("[tray] sync lyric window on startup failed: {err}");
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 主窗口关闭请求：按配置决定「退出」还是「隐藏到托盘」，
-            // 避免窗口被销毁后进程与音频仍在后台运行却无法找回。
-            if window.label() != "main" {
-                return;
-            }
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if read_close_behavior() == "exit_app" {
-                    window.app_handle().exit(0);
-                    return;
+            match window.label() {
+                // 主窗口关闭请求：按配置决定「退出」还是「隐藏到托盘」，
+                // 避免窗口被销毁后进程与音频仍在后台运行却无法找回。
+                "main" => {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        if read_close_behavior() == "exit_app" {
+                            window.app_handle().exit(0);
+                            return;
+                        }
+                        api.prevent_close();
+                        let _ = window.hide();
+                        let _ = window.set_skip_taskbar(true);
+                    }
                 }
-                api.prevent_close();
-                let _ = window.hide();
-                let _ = window.set_skip_taskbar(true);
+                // 歌词窗口：几何变化防抖持久化 + 关闭请求拦截
+                "lyric" => lyric_window::handle_lyric_window_event(window, event),
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

@@ -19,6 +19,8 @@ export interface IAppState {
     playerState: PlayerState;
     repeatMode: RepeatMode;
     currentLrc: IParsedLrcItem | null;
+    /** 当前歌曲的全部歌词行（仅在切歌 / 歌词刷新时变化，用于辅助窗口计算行时长） */
+    fullLyric: IParsedLrcItem[] | null;
     progress: { currentTime: number; duration: number };
     isFavorite: boolean;
 }
@@ -74,6 +76,28 @@ export interface IPortMessageMap {
 }
 
 export type PortMessageType = keyof IPortMessageMap;
+
+// ─── Tauri 跨窗口事件信封 ───
+//
+// Tauri 的 emit 是全局广播（发送者自己也会收到），且 emit_to 的 label 过滤
+// 对 target: Any 的 JS 监听无效，因此窗口间隔离依赖信封里的 from / full。
+
+export interface IAppStateEnvelope {
+    v: 1;
+    /** 发送方窗口 label */
+    from: string;
+    /** true = 全量快照（响应订阅请求），false = 增量补丁 */
+    full: boolean;
+    state: Partial<IAppState>;
+}
+
+export interface ICommandEnvelope {
+    v: 1;
+    /** 发送方窗口 label，用于过滤自己发出的广播 */
+    from: string;
+    command: string;
+    data?: unknown;
+}
 
 export interface IPortMessage<T extends PortMessageType = PortMessageType> {
     type: T;

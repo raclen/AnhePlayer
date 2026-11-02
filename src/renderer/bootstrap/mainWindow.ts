@@ -24,6 +24,7 @@ import localMusic from '@infra/localMusic/renderer';
 import trackPlayer from '@renderer/mainWindow/core/trackPlayer';
 import { runPostBootstrapTasks } from './postBootstrap';
 import { setupCommandHandlers } from '@renderer/mainWindow/core/commandHandlers';
+import { setupDesktopLyricController } from '@renderer/mainWindow/core/desktopLyricController';
 import { syncKV } from '@renderer/common/kvStore';
 
 // TODO(v1.1.0): Remove this function and its call in bootstrapMainWindow
@@ -67,6 +68,9 @@ export default async function bootstrapMainWindow(): Promise<void> {
         appConfig,
         appSync,
     });
+
+    // Phase 3.5: 桌面歌词窗口控制器（只依赖 appConfig + systemUtil，越早越好）
+    setupDesktopLyricController();
 
     // Phase 4: trackPlayer 依赖 pluginManager + musicSheet（恢复状态时需要获取音源）
     await trackPlayer.setup();

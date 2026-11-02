@@ -5,6 +5,7 @@
  * 通过 jotai atoms 驱动 UI，通过 AppSync 同步状态到辅助窗口和 Tauri bridge。
  */
 import type { IMusicItemSlim } from '@appTypes/infra/musicSheet';
+import type { IAppState } from '@appTypes/infra/appSync';
 import { PlayerState, RepeatMode, QUALITY_KEYS } from '@common/constant';
 import { isSameMedia } from '@common/mediaKey';
 import musicItemToSlim from '@common/musicItemToSlim';
@@ -27,6 +28,7 @@ import { syncKV } from '@renderer/common/kvStore';
 import { REPEAT_MODE_MAP } from '@renderer/common/repeatModeMap';
 import { showToast } from '@renderer/mainWindow/components/ui/Toast';
 import i18n from '@infra/i18n/renderer';
+import LyricParser from '@common/lyricParser';
 import { type IAudioController, createAudioController } from './audioController';
 import PlayQueue from './playQueue';
 import LyricManager from './lyricManager';
@@ -73,9 +75,19 @@ function setupAppSyncBridge(): void {
     store.sub(repeatModeAtom, () => {
         appSync.syncAppState({ repeatMode: store.get(repeatModeAtom) });
     });
+    // 歌词行变化时只推送当前行；全量歌词仅在 parser 引用变化（切歌/刷新/清空）时推送一次
+    let lastLyricParser: LyricParser | null | undefined;
     store.sub(currentLyricAtom, () => {
         const lyric = store.get(currentLyricAtom);
-        appSync.syncAppState({ currentLrc: lyric?.currentLrc ?? null });
+        const parser = lyric?.parser ?? null;
+        const patch: Partial<IAppState> = {
+            currentLrc: lyric?.currentLrc ?? null,
+        };
+        if (parser !== lastLyricParser) {
+            lastLyricParser = parser;
+            patch.fullLyric = parser ? parser.getLyricItems() : null;
+        }
+        appSync.syncAppState(patch);
     });
 
     // 收藏状态变化时同步
@@ -98,22 +110,21 @@ function setupAppSyncBridge(): void {
     });
 
     // 获取当前完整状态快照
-    const getCurrentState = () => ({
+    const getCurrentState = (): Partial<IAppState> => ({
         musicItem: store.get(currentMusicAtom),
         playerState: store.get(playerStateAtom),
         repeatMode: store.get(repeatModeAtom),
         progress: store.get(progressAtom),
         currentLrc: store.get(currentLyricAtom)?.currentLrc ?? null,
+        fullLyric: store.get(currentLyricAtom)?.parser?.getLyricItems() ?? null,
         isFavorite: getIsFavorite(),
     });
 
     // 初始同步：store.sub 仅监听后续变化，此处补推一次当前状态
     appSync.syncAppState(getCurrentState());
 
-    // 辅助窗口新订阅时，从 store（唯一 source of truth）定向推送
-    appSync.onSubscribe((windowType) => {
-        appSync.syncAppStateTo(windowType, getCurrentState());
-    });
+    // 辅助窗口新订阅时（或启动早于本函数执行），由 provider 定向补发全量快照
+    appSync.setSnapshotProvider(getCurrentState);
 }
 
 // ─── TrackPlayer ───

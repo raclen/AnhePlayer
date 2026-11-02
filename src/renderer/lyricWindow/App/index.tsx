@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { cn } from '@common/cn';
 import appSyncAuxiliary from '@infra/appSync/renderer/auxiliary';
+import systemUtil from '@infra/systemUtil/renderer';
 import { useConfigValue } from '@renderer/common/hooks/useConfigValue';
 
 import LyricToolbar from '../components/LyricToolbar';
@@ -62,9 +63,21 @@ export default function App() {
         clearHoverTimer();
     }, [isLocked, clearHoverTimer]);
 
+    // 锁定 = 整窗鼠标穿透。主窗口控制器已通过 sync_lyric_window 设置，
+    // 这里再做一次即时反馈与兜底（窗口隐藏期间 WebView 被节流时可能漏掉）。
+    useEffect(() => {
+        systemUtil.ignoreMouseEvent(isLocked);
+    }, [isLocked]);
+
     // 订阅应用状态
     useEffect(() => {
-        appSyncAuxiliary.subscribeAppState(['musicItem', 'playerState', 'currentLrc', 'progress']);
+        appSyncAuxiliary.subscribeAppState([
+            'musicItem',
+            'playerState',
+            'currentLrc',
+            'fullLyric',
+            'progress',
+        ]);
     }, []);
 
     return (
@@ -77,7 +90,8 @@ export default function App() {
             onMouseOver={handleMouseOver}
             onMouseLeave={handleMouseLeave}
         >
-            <LyricToolbar locked={isLocked} visible={showToolbar} />
+            {/* 锁定态整窗穿透，工具栏点不到，因此直接不渲染 */}
+            {!isLocked && <LyricToolbar visible={showToolbar} />}
             <LyricText />
         </div>
     );

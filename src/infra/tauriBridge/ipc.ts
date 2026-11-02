@@ -8,6 +8,10 @@
 interface TauriInternals {
     invoke<T = any>(cmd: string, args?: Record<string, unknown>): Promise<T>;
     transformCallback(callback: (...args: any[]) => void, once?: boolean): number;
+    metadata?: {
+        currentWindow?: { label?: string };
+        currentWebview?: { label?: string };
+    };
 }
 
 function getTauriInternals(): TauriInternals | null {
@@ -16,9 +20,23 @@ function getTauriInternals(): TauriInternals | null {
 }
 
 /**
+ * 当前窗口 label（`main` / `lyric` / `minimode`）
+ *
+ * Tauri 在初始化脚本文中注入 `__TAURI_INTERNALS__.metadata.currentWindow.label`，
+ * 可同步获取；非 Tauri 环境（纯浏览器调试）回退为 main。
+ */
+export function getCurrentWindowLabel(): string {
+    const internals = getTauriInternals();
+    return internals?.metadata?.currentWindow?.label || 'main';
+}
+
+/**
  * 调用 Rust 暴露的 Tauri 命令
  */
-export async function tauriInvoke<T = any>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+export async function tauriInvoke<T = any>(
+    cmd: string,
+    args?: Record<string, unknown>,
+): Promise<T> {
     const internals = getTauriInternals();
     if (!internals) {
         console.warn(`[TauriBridge] Environment is not Tauri, skip invoke: ${cmd}`, args);
@@ -32,7 +50,7 @@ export async function tauriInvoke<T = any>(cmd: string, args?: Record<string, un
  */
 export async function tauriListen<T = any>(
     event: string,
-    handler: (payload: T) => void
+    handler: (payload: T) => void,
 ): Promise<() => void> {
     const internals = getTauriInternals();
     if (!internals) {
