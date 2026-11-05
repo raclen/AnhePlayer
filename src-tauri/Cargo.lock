@@ -43,7 +43,7 @@ dependencies = [
 
 [[package]]
 name = "anhe-player"
-version = "1.0.39"
+version = "1.0.40"
 dependencies = [
  "dirs 5.0.1",
  "env_logger",
