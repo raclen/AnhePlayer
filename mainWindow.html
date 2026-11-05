@@ -5,6 +5,13 @@
         <title>AnhePlayer</title>
         <meta name="referrer" content="no-referrer" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <style>
+            /* 首帧底色：避免 WebView 在脚本与样式就绪前出现白闪，主题变量生效后自动跟随 */
+            html,
+            body {
+                background-color: var(--color-bg-base, #121212);
+            }
+        </style>
         <style id="themepack-node"></style>
         <link rel="icon" href="data:," />
         <script>

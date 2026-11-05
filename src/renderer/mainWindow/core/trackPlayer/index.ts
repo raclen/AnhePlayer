@@ -183,27 +183,8 @@ class TrackPlayer {
         if (savedMusic && !isRadioBrowserMedia(savedMusic)) {
             store.set(currentMusicAtom, musicItemToSlim(savedMusic));
 
-            // 获取完整数据并加载音源（不自动播放）
-            const fullItem = await musicSheet.getRawMusicItem(savedMusic.platform, savedMusic.id);
-            const musicItem = fullItem ?? savedMusic;
-
-            try {
-                const localSource = await this.tryLocalSource(musicItem);
-                const result =
-                    localSource ?? (await this.resolveMediaSource(musicItem, validQuality));
-
-                if (result?.url && this.isCurrentMusic(savedMusic)) {
-                    this.audioController.setSpeed(speed);
-                    this.audioController.setTrackSource(result, musicItem);
-                    this.markPlaybackSource(musicItem.platform);
-                    this.audioController.seekTo(savedProgress);
-                    if (result.quality) store.set(qualityAtom, result.quality);
-                }
-            } catch {
-                // 恢复失败不阻塞启动
-            }
-
-            this.lyricManager.fetchLyric(musicItem);
+            // 音源恢复可能触发网络请求，不能阻塞主窗口首帧；失败也不影响 UI 启动。
+            void this.restoreSavedMusic(savedMusic, savedProgress, validQuality);
         } else if (savedMusic && isRadioBrowserMedia(savedMusic)) {
             syncKV.remove('player.currentMusic');
             store.set(currentMusicAtom, null);
@@ -971,6 +952,45 @@ class TrackPlayer {
 
     private isCurrentMusic(item: IMedia.IMediaBase | null): boolean {
         return isSameMedia(store.get(currentMusicAtom), item);
+    }
+
+    /**
+     * 后台恢复上次歌曲的音源，避免网络异常时白屏等待几十秒甚至数分钟。
+     * 恢复期间用户可能已手动接管播放，落地前必须再次确认，避免覆盖用户操作。
+     */
+    private async restoreSavedMusic(
+        savedMusic: IMusic.IMusicItem,
+        savedProgress: number,
+        quality: IMusic.IQualityKey,
+    ): Promise<void> {
+        try {
+            const fullItem = await musicSheet.getRawMusicItem(savedMusic.platform, savedMusic.id);
+            const musicItem = fullItem ?? savedMusic;
+
+            // 歌词不依赖音频地址，与取源并行，主界面可用后尽快展示歌词
+            void this.lyricManager.fetchLyric(musicItem).catch(() => {});
+
+            const localSource = await this.tryLocalSource(musicItem);
+            const result = localSource ?? (await this.resolveMediaSource(musicItem, quality));
+
+            // 用户已接管播放（点了播放、切歌、切音质）时放弃恢复，避免重新换源并覆盖进度
+            const untouched =
+                !this.audioController.hasSource && store.get(playerStateAtom) === PlayerState.None;
+
+            if (result?.url && untouched && this.isCurrentMusic(savedMusic)) {
+                // 倍速使用用户当前值，而非启动时的快照
+                this.audioController.setSpeed(store.get(speedAtom));
+                this.audioController.setTrackSource(result, musicItem);
+                this.markPlaybackSource(musicItem.platform);
+                this.audioController.seekTo(savedProgress);
+                if (result.quality) {
+                    store.set(qualityAtom, result.quality);
+                    syncKV.set('player.currentQuality', result.quality);
+                }
+            }
+        } catch {
+            // 恢复失败不阻塞启动；用户仍可在 UI 中手动重试播放。
+        }
     }
 
     /**

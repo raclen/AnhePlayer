@@ -34,6 +34,8 @@ class LyricManager {
 
         // 从 mediaMeta 恢复该歌曲的歌词偏移和关联歌词信息
         const meta = await mediaMeta.getMeta(musicItem.platform, String(musicItem.id));
+        // 等待期间可能已切歌，丢弃本次结果，避免覆盖新歌的偏移与关联歌词
+        if (this.currentMusicKey !== key) return;
         this.userOffset = meta?.lyricOffset ?? 0;
         store.set(associatedLyricAtom, meta?.associatedLyric?.musicItem ?? null);
 
