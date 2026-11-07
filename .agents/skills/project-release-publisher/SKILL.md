@@ -179,12 +179,16 @@ A successful tag build should create:
 
 1. An Actions artifact named `AnhePlayer-Tauri-Windows`, containing the release EXE/MSI outputs.
 2. A non-draft, non-prerelease GitHub Release named `AnhePlayer v<VERSION>`.
-3. Exactly these two public release assets (version substituted):
+3. Both public Windows installer assets (version substituted):
 
 ```text
 AnhePlayer_<VERSION>_x64-setup.exe
 AnhePlayer_<VERSION>_x64_en-US.msi
 ```
+
+4. `latest.json` and the matching `.exe.sig` / `.msi.sig` updater signatures. The manifest must contain `windows-x86_64`, `windows-x86_64-nsis`, and `windows-x86_64-msi`, with this version's URLs and embedded signature text.
+
+应用内更新从 1.0.42 开始接入：构建依赖 `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` Secrets 与客户端内置公钥。签名必须绑定发布版本，禁止随意更换密钥。标签构建先创建草稿 Release，`verify-updater-assets.mjs` 校验安装包、签名和清单后才公开；dispatch 仅验证签名产物，不发布。旧版需先手动安装含 updater 的版本，之后再进行应用内升级。
 
 The workflow currently publishes Windows only. Do not expect macOS/Linux assets or a portable ZIP.
 

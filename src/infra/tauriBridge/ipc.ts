@@ -61,7 +61,7 @@ export async function tauriListen<T = any>(
         const handlerId = internals.transformCallback((e: { event: string; payload: T }) => {
             handler(e.payload);
         });
-        await internals.invoke('plugin:event|listen', {
+        const eventId = await internals.invoke<number>('plugin:event|listen', {
             event,
             target: { kind: 'Any' },
             handler: handlerId,
@@ -71,7 +71,7 @@ export async function tauriListen<T = any>(
             try {
                 await internals.invoke('plugin:event|unlisten', {
                     event,
-                    eventId: handlerId,
+                    eventId,
                 });
             } catch (err) {
                 console.error(`[TauriBridge] Failed to unlisten event ${event}:`, err);

@@ -13,6 +13,7 @@ use commands::{
     lyric_window::{self, sync_lyric_window, LyricWindowState},
     netease::*,
     system_util::*,
+    updater::*,
     webdav::*,
 };
 use tauri::{
@@ -47,6 +48,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(AppUpdateState::default())
         .manage(ForwarderPortState::default())
         .manage(DownloadCancelState::default())
         .manage(LyricWindowState::default())
@@ -73,6 +76,10 @@ pub fn run() {
             log_entry,
             get_cache_size,
             clear_cache,
+            // 应用内更新（仅主窗口可调用）
+            check_app_update,
+            download_app_update,
+            install_app_update,
             // 桌面歌词窗口
             sync_lyric_window,
             // Dialog

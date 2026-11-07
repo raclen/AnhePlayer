@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const info = JSON.parse(fs.readFileSync(path.join(root, 'release/version.json'), 'utf-8'));
@@ -23,3 +24,13 @@ lines.push(`- Windows MSI：\`AnhePlayer_${info.version}_x64_en-US.msi\``);
 const outPath = path.join(root, 'release-notes.md');
 fs.writeFileSync(outPath, lines.join('\n') + '\n', 'utf-8');
 console.log(`[gen-release-notes] wrote ${outPath} for v${info.version}`);
+
+// updater 清单复用同一份变更说明，不混入官网/安装包下载链接。
+if (process.env.GITHUB_OUTPUT) {
+    const delimiter = `notes_${randomUUID()}`;
+    fs.appendFileSync(
+        process.env.GITHUB_OUTPUT,
+        `updater_notes<<${delimiter}\n${(info.changeLog ?? []).join('\n')}\n${delimiter}\n`,
+        'utf-8',
+    );
+}

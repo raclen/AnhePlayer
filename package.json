@@ -1,7 +1,7 @@
 {
     "name": "anhe-player",
     "productName": "AnhePlayer",
-    "version": "1.0.41",
+    "version": "1.0.42",
     "description": "一个插件化的音乐播放器",
     "private": true,
     "scripts": {
@@ -42,7 +42,7 @@
     },
     "devDependencies": {
         "@eslint/js": "^9.39.2",
-        "@tauri-apps/cli": "^2.0.0",
+        "@tauri-apps/cli": "^2.12.3",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@types/three": "^0.186.0",

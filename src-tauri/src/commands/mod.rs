@@ -10,4 +10,5 @@ pub mod local_meta;
 pub mod lyric_window;
 pub mod netease;
 pub mod system_util;
+pub mod updater;
 pub mod webdav;

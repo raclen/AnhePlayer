@@ -213,15 +213,17 @@ Get-CimInstance Win32_Process | Where-Object { $_.Name -like '*anhe*' } | ForEac
 
 **触发信号**：新版本已发布，但应用内「检查更新」提示的仍是旧版本（如 v1.0.19 已发布、公告内容停留在 1.0.16/1.0.18）。
 
-**根因/约束**：`check_update` 读取仓库内 `release/version.json`（version/changeLog/download，经 raw / jsdelivr / gh-proxy 多镜像竞速拉取）。迁移到 Tauri 后由 tag 触发的 CI 自动发版不再包含手工公告同步，公告因此可能滞留旧版本。
+**根因/约束**：`release/version.json` 是发布说明的数据源。应用内更新改为读取正式 Release 的 `latest.json`，通过 Tauri updater 下载并验证安装包；不能再用 master 分支上的公告版本判断更新可安装，否则会在 CI 产物发布前误报新版本。
 
 **正确做法**：
 
-1. 发版前把 `release/version.json` 的 version/changeLog 更新到目标版本；download 只保留 `https://anhe-player.loc.cc` 这一个官网下载入口，禁止改回 GitHub Release 资产直链。更新弹窗与“关于”中的官方网站共用 `OFFICIAL_SITE_URL`，弹窗不使用公告中的旧下载地址，避免国内用户被引导到受阻的 GitHub。
-2. `tauri-build.yml` 已加入前置校验（tag 与 version.json.version 不一致直接构建失败）与发布说明生成步骤（Release body 由 version.json 的 changeLog 生成，单一数据源）。
-3. Tauri 端 `check_update` 命令必须实现既有 UPDATE_SOURCES 拉取与版本比较逻辑，否则应用内根本不会展示更新公告。
+1. 发版前同步 `release/version.json` 与包版本；`changeLog` 同时生成 Release 说明及 `latest.json.notes`。公告中的 download 继续保留官网入口供旧版客户端使用；新版更新弹窗不再打开浏览器。
+2. 发布构建必须配置 `TAURI_SIGNING_PRIVATE_KEY` / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`，公钥保存在 `tauri.conf.json`。私钥及密码只保存在仓库外和 GitHub Actions Secrets，禁止写入仓库或日志，也不能随意轮换公钥，否则已安装版本无法验证后续更新。
+3. 开启 `createUpdaterArtifacts`，先创建草稿 Release，上传并验证安装包、`.sig` 与 `latest.json` 后再公开。Windows 默认选择 NSIS，同时保留 MSI 的安装器类型映射；dispatch 只生成 artifact，不发版。
+4. `check_app_update` / `download_app_update` / `install_app_update` 仅接受主窗口调用。更新地址由 Rust 固定，镜像只作为传输回退；禁止开放任意 URL/文件安装、跳过签名或将下载完成事件当作验签成功。
+5. 首个包含 updater 的版本仍需用户按旧流程安装一次；之后的签名发布才支持应用内更新。真实安装验证需要新旧两个签名版本，不得把前端构建或模拟下载当作安装闭环。
 
-**验证方式**：`curl -s https://raw.githubusercontent.com/raclen/AnhePlayer/master/release/version.json` 的 version 应与最新 tag 一致。
+**验证方式**：标签与各版本配置一致；正式 Release 含 `latest.json`、匹配平台安装包和签名；从旧安装版实测下载、验签、安装重启及用户数据保留。
 
 **适用范围**：所有正式发布流程。
 

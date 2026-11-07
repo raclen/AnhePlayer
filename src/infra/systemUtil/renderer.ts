@@ -7,7 +7,7 @@
  *   - systemUtil.shell  — 系统 Shell 操作
  *   - systemUtil.dialog — 原生对话框
  */
-import type { IUpdateInfo } from '@appTypes/infra/systemUtil';
+import type { IUpdateInfo, IUpdateProgress } from '@appTypes/infra/systemUtil';
 import { CONTEXT_BRIDGE_KEY } from './common/constant';
 
 interface IDialogFilter {
@@ -48,6 +48,11 @@ interface IMod {
         getCacheSize(): Promise<number>;
         clearCache(): void;
         checkUpdate(): Promise<IUpdateInfo>;
+        downloadUpdate(
+            version: string,
+            onProgress: (progress: IUpdateProgress) => void,
+        ): Promise<void>;
+        installUpdate(version: string): Promise<void>;
     };
     window: {
         minimizeWindow(skipTaskBar?: boolean): void;
@@ -96,6 +101,19 @@ class SystemUtilRenderer {
     /** 检查应用更新 */
     public checkUpdate(): Promise<IUpdateInfo> {
         return mod.app.checkUpdate();
+    }
+
+    /** 下载更新并验证签名，不自动安装 */
+    public downloadUpdate(
+        version: string,
+        onProgress: (progress: IUpdateProgress) => void,
+    ): Promise<void> {
+        return mod.app.downloadUpdate(version, onProgress);
+    }
+
+    /** 安装已验证的更新，成功后由安装器重启应用 */
+    public installUpdate(version: string): Promise<void> {
+        return mod.app.installUpdate(version);
     }
 
     // ─── Window ───

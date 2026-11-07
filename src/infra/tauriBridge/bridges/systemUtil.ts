@@ -1,57 +1,34 @@
 /**
  * Tauri 桥接：systemUtil
  */
-import { compare } from 'compare-versions';
-import { CONTEXT_BRIDGE_KEY, UPDATE_SOURCES } from '@infra/systemUtil/common/constant';
-import type { IUpdateInfo } from '@appTypes/infra/systemUtil';
-import { tauriInvoke } from '../ipc';
+import { CONTEXT_BRIDGE_KEY } from '@infra/systemUtil/common/constant';
+import type { IUpdateInfo, IUpdateProgress } from '@appTypes/infra/systemUtil';
+import { tauriInvoke, tauriListen } from '../ipc';
 
-/**
- * 检查应用更新（JS 实现，逐源尝试）。
- * 任一更新源返回更高版本即中止并给出 update 信息。
- */
 async function checkUpdateImpl(): Promise<IUpdateInfo> {
-    const currentVersion = ((globalThis as any).globalContext?.appVersion as string) || '0.0.0';
-    const info: IUpdateInfo = { version: currentVersion };
-
-    for (const source of UPDATE_SOURCES) {
-        try {
-            const res = await tauriInvoke<{ statusCode: number; body: string }>('http_request', {
-                url: source,
-                options: {
-                    method: 'GET',
-                    headers: { 'Cache-Control': 'no-cache' },
-                },
-            });
-            if (!res || res.statusCode !== 200 || typeof res.body !== 'string') continue;
-
-            let remote: { version?: string; changeLog?: unknown; download?: unknown };
-            try {
-                remote = JSON.parse(res.body);
-            } catch {
-                continue;
-            }
-            if (!remote?.version) continue;
-
-            if (compare(String(remote.version), currentVersion, '>')) {
-                info.update = {
-                    version: String(remote.version),
-                    changeLog: Array.isArray(remote.changeLog)
-                        ? (remote.changeLog as string[])
-                        : undefined,
-                    download: Array.isArray(remote.download)
-                        ? (remote.download as string[])
-                        : undefined,
-                };
-            }
-            // 首个可用源成功即返回（无论是否有更新）
-            return info;
-        } catch {
-            /* 当前源不可用，尝试下一个 */
-        }
-    }
-
+    const info = await tauriInvoke<IUpdateInfo>('check_app_update');
+    if (!info) throw new Error('应用内更新仅在桌面应用中可用');
     return info;
+}
+
+async function downloadUpdateImpl(
+    version: string,
+    onProgress: (progress: IUpdateProgress) => void,
+): Promise<void> {
+    if (!(window as any).__TAURI_INTERNALS__) {
+        throw new Error('应用内更新仅在桌面应用中可用');
+    }
+    let active = true;
+    const unlisten = await tauriListen<IUpdateProgress>('app-update-progress', (progress) => {
+        if (active && progress.version === version) onProgress(progress);
+    });
+    try {
+        await tauriInvoke('download_app_update', { version });
+    } finally {
+        // 忽略已排队但晚于命令结果送达的事件，避免 ready 状态倒退到 verifying。
+        active = false;
+        unlisten();
+    }
 }
 
 export function registerSystemUtilBridge(): void {
@@ -71,6 +48,13 @@ export function registerSystemUtilBridge(): void {
                 tauriInvoke('clear_cache').catch(console.error);
             },
             checkUpdate: checkUpdateImpl,
+            downloadUpdate: downloadUpdateImpl,
+            installUpdate: async (version: string): Promise<void> => {
+                if (!(window as any).__TAURI_INTERNALS__) {
+                    throw new Error('应用内更新仅在桌面应用中可用');
+                }
+                await tauriInvoke('install_app_update', { version });
+            },
         },
         window: {
             minimizeWindow: (skipTaskBar?: boolean) => {
