@@ -70,6 +70,20 @@ jobs:
               id: release_notes
               run: node ./scripts/gen-release-notes.mjs
 
+            - name: Resolve bundler download mirror
+              shell: bash
+              # GitHub Release 下载偶发 504，会让 NSIS/WiX 下载拖垮整轮打包。
+              # 这些工具包下载后都有 SHA1 校验，直连异常时改走镜像。
+              run: |
+                  URL="https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.13/nsis-3.13.zip"
+                  CODE=$(curl -s -o /dev/null -w '%{http_code}' -L --max-time 20 -r 0-0 "$URL" || true)
+                  if [ "$CODE" != "200" ] && [ "$CODE" != "206" ]; then
+                    echo "GitHub 直连返回 $CODE，改用镜像下载打包工具"
+                    echo 'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR_TEMPLATE=https://ghproxy.net/https://github.com/<owner>/<repo>/releases/download/<version>/<asset>' >> "$GITHUB_ENV"
+                  else
+                    echo "GitHub 直连正常（$CODE），无需镜像"
+                  fi
+
             - name: Build Tauri App
               uses: tauri-apps/tauri-action@v0
               env:
