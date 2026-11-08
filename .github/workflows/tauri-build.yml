@@ -70,19 +70,37 @@ jobs:
               id: release_notes
               run: node ./scripts/gen-release-notes.mjs
 
-            - name: Resolve bundler download mirror
-              shell: bash
+            - name: Pre-seed bundler tools
+              if: startsWith(github.ref, 'refs/tags/v')
+              shell: pwsh
               # GitHub Release 下载偶发 504，会让 NSIS/WiX 下载拖垮整轮打包。
-              # 这些工具包下载后都有 SHA1 校验，直连异常时改走镜像。
+              # 这里改用 gh 的 API 通道预置工具包到 bundler 缓存目录（%LOCALAPPDATA%\tauri），
+              # 命中缓存后打包器会跳过下载；预置失败则退回打包器直连，不阻断构建。
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  URL="https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.13/nsis-3.13.zip"
-                  CODE=$(curl -s -o /dev/null -w '%{http_code}' -L --max-time 20 -r 0-0 "$URL" || true)
-                  if [ "$CODE" != "200" ] && [ "$CODE" != "206" ]; then
-                    echo "GitHub 直连返回 $CODE，改用镜像下载打包工具"
-                    echo 'TAURI_BUNDLER_TOOLS_GITHUB_MIRROR_TEMPLATE=https://ghproxy.net/https://github.com/<owner>/<repo>/releases/download/<version>/<asset>' >> "$GITHUB_ENV"
-                  else
-                    echo "GitHub 直连正常（$CODE），无需镜像"
-                  fi
+                  $ErrorActionPreference = 'Stop'
+                  try {
+                    $tools = Join-Path $env:LOCALAPPDATA 'tauri'
+                    $stage = Join-Path $env:RUNNER_TEMP 'bundler-tools'
+                    New-Item -ItemType Directory -Force -Path $tools, $stage | Out-Null
+                    if (-not (Test-Path (Join-Path $tools 'NSIS'))) {
+                      gh release download nsis-3.13 -R tauri-apps/binary-releases -p nsis-3.13.zip -D $stage
+                      Expand-Archive -Path (Join-Path $stage 'nsis-3.13.zip') -DestinationPath (Join-Path $stage 'nsis') -Force
+                      Move-Item (Join-Path $stage 'nsis/nsis-3.13') (Join-Path $tools 'NSIS')
+                      gh release download nsis_tauri_utils-v0.5.3 -R tauri-apps/nsis-tauri-utils -p nsis_tauri_utils.dll -D $stage
+                      $pluginDir = Join-Path $tools 'NSIS/Plugins/x86-unicode/additional'
+                      New-Item -ItemType Directory -Force -Path $pluginDir | Out-Null
+                      Copy-Item (Join-Path $stage 'nsis_tauri_utils.dll') $pluginDir
+                    }
+                    if (-not (Test-Path (Join-Path $tools 'WixTools314'))) {
+                      gh release download wix3141rtm -R wixtoolset/wix3 -p wix314-binaries.zip -D $stage
+                      Expand-Archive -Path (Join-Path $stage 'wix314-binaries.zip') -DestinationPath (Join-Path $tools 'WixTools314') -Force
+                    }
+                    Write-Host "打包工具预置完成：$tools"
+                  } catch {
+                    Write-Warning "打包工具预置失败，退回打包器直连：$_"
+                  }
 
             - name: Build Tauri App
               uses: tauri-apps/tauri-action@v0
