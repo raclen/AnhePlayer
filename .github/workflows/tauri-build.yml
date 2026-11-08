@@ -16,7 +16,6 @@ jobs:
             matrix:
                 include:
                     - platform: 'windows-latest'
-                      args: ''
 
         runs-on: ${{ matrix.platform }}
         steps:
@@ -87,14 +86,20 @@ jobs:
                   prerelease: false
                   uploadUpdaterJson: true
                   updaterJsonPreferNsis: true
-                  args: ${{ matrix.args }}
+                  # dispatch 验证构建跳过打包：NSIS 需要从 GitHub Releases 下载，
+                  # 该外部依赖一旦 504 就会吞掉整轮编译成果；标签发版仍完整打包。
+                  args: ${{ startsWith(github.ref, 'refs/tags/') && '--bundles nsis,msi' || '--no-bundle' }}
 
             - name: Verify signed updater artifacts
+              # dispatch 构建不产出安装包，签名校验只对标签发版有意义
+              if: startsWith(github.ref, 'refs/tags/v')
               run: node ./scripts/verify-updater-assets.mjs
 
             - name: Upload Windows Artifacts
               uses: actions/upload-artifact@v4
-              if: matrix.platform == 'windows-latest'
+              # dispatch 验证构建即使卡在 NSIS 等外部下载失败，也要把已编译的 exe 传上来；
+              # 标签发版仍由后续 Publish 步骤保证产物完整。
+              if: always() && matrix.platform == 'windows-latest'
               with:
                   name: AnhePlayer-Tauri-Windows
                   path: |
