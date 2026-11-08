@@ -2,9 +2,12 @@
  * Tauri 桥接：pluginManager — 内置「本地」插件（渲染进程版）
  *
  * 由 src/main/core/builtinPlugins/localPlugin.ts 移植：
- * - 元数据不再解析音频标签（Web 端无同步 tag parser），标题取文件名
+ * - 扫描入库的元数据由 localMusicStore 负责（标题/歌手/专辑/时长）
+ * - 封面与内嵌歌词按需向 Rust 取（local_export_cover / local_read_lyric）：
+ *   扫描时逐首解析会让曲库体积与内存暴涨，且当前歌曲对象会写入 localStorage，
+ *   内嵌封面最大接近 900KB（base64 后 ×1.33），必须走缓存文件 + asset URL
  * - 播放 URL 使用 Tauri asset 协议（支持大文件流式播放，避免整文件读入内存）
- * - 歌词仅透传 rawLrc，同名 .lrc 文件由 lyricAdapter Step 2 处理
+ * - 歌词仅透传 rawLrc，同名 .lrc 文件由 lyricAdapter Step 2 处理（优先于内嵌歌词）
  */
 import { LOCAL_PLUGIN_NAME, SUPPORTED_AUDIO_EXTS } from '@common/constant';
 import { tauriInvoke } from '../../ipc';
@@ -98,9 +101,31 @@ function hashPath(p: string): string {
     return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0');
 }
 
+// ─── 内嵌封面 / 歌词 ───
+
+/** 封面缓存文件的路径 → asset URL；失败返回 null */
+async function readEmbeddedCover(filePath: string): Promise<string | null> {
+    try {
+        const coverPath = await tauriInvoke<string | null>('local_export_cover', { filePath });
+        return coverPath ? toAssetUrl(coverPath) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** 读取内嵌歌词文本；任一环节失败返回 null，交给适配器继续下一步 */
+async function readEmbeddedLyric(filePath: string): Promise<string | null> {
+    try {
+        const text = await tauriInvoke<string | null>('local_read_lyric', { filePath });
+        return typeof text === 'string' && text.trim() ? text : null;
+    } catch {
+        return null;
+    }
+}
+
 // ─── 导入 ───
 
-/** 解析单个本地音乐文件为曲目（标题取文件名，标签解析后续版本接入） */
+/** 解析单个本地音乐文件为曲目（标题取文件名，标签解析在扫描入库时完成） */
 async function parseLocalMusicItem(filePath: string): Promise<IMusic.IMusicItem> {
     const title = stripExt(getBaseName(filePath)) || filePath;
 
@@ -143,13 +168,17 @@ const localPluginDefine: IPlugin.IPluginInstance = {
         };
     },
     async getLyric(musicItem) {
-        // 同名 .lrc 文件由 lyricAdapter 的 Step 2 统一处理
+        // 同名 .lrc 文件由 lyricAdapter 的 Step 2 统一处理（优先于内嵌歌词）
         if ((musicItem as any)?.rawLrc) {
             return {
                 rawLrc: (musicItem as any).rawLrc,
             };
         }
-        return null;
+        // 回退到内嵌歌词（ID3v2 USLT / MP4 ©lyr / Vorbis UNSYNCEDLYRICS）
+        const localPath = resolveLocalPath(musicItem);
+        if (!localPath) return null;
+        const rawLrc = await readEmbeddedLyric(localPath);
+        return rawLrc ? { rawLrc } : null;
     },
     async importMusicItem(filePath) {
         return parseLocalMusicItem(filePath);
@@ -157,8 +186,14 @@ const localPluginDefine: IPlugin.IPluginInstance = {
     async importMusicSheet(folderPath) {
         return parseLocalMusicItemFolder(folderPath);
     },
-    async getMusicInfo() {
-        return null;
+    async getMusicInfo(musicItem) {
+        // 播放时异步补封面（trackPlayer 在 setCurrentMusic 后调用）。
+        // 已有 artwork 时直接返回，避免重复导出缓存文件。
+        if ((musicItem as any)?.artwork) return null;
+        const localPath = resolveLocalPath(musicItem);
+        if (!localPath) return null;
+        const artwork = await readEmbeddedCover(localPath);
+        return artwork ? { artwork } : null;
     },
 };
 

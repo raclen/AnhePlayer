@@ -102,6 +102,8 @@ pub fn run() {
             // Local Music
             local_scan_dir,
             local_parse_meta,
+            local_export_cover,
+            local_read_lyric,
             // Download
             download_file,
             download_cancel,

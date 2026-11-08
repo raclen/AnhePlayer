@@ -311,24 +311,7 @@ class TrackPlayer {
                 addToRecentlyPlayed(musicItem).catch(() => {});
 
                 // 异步丰富元数据（锦上添花，失败不影响播放）
-                pluginManager
-                    .callPluginMethod({
-                        platform: musicItem.platform,
-                        method: 'getMusicInfo',
-                        args: [musicItem],
-                    })
-                    .then((info) => {
-                        if (info && typeof info === 'object' && this.isCurrentMusic(targetSlim)) {
-                            const enriched = {
-                                ...musicItem,
-                                ...info,
-                                platform: musicItem.platform,
-                                id: musicItem.id,
-                            };
-                            this.setCurrentMusic(enriched, false);
-                        }
-                    })
-                    .catch(() => {});
+                void this.enrichMusicInfo(musicItem).catch(() => {});
             }
         } catch (e) {
             // 旧曲目的异步请求晚于新曲目失败时，不得重置后来已经开始的播放。
@@ -932,6 +915,26 @@ class TrackPlayer {
     }
 
     /**
+     * 向插件请求补充元数据（如本地歌的内嵌封面），成功时更新当前歌曲。
+     * 仅当仍是同一首歌时才落地，避免异步结果覆盖后切换的歌曲。
+     */
+    private async enrichMusicInfo(musicItem: IMusic.IMusicItem): Promise<void> {
+        const info = await pluginManager.callPluginMethod({
+            platform: musicItem.platform,
+            method: 'getMusicInfo',
+            args: [musicItem],
+        });
+        if (!info || typeof info !== 'object' || !this.isCurrentMusic(musicItem)) return;
+        const enriched = {
+            ...musicItem,
+            ...info,
+            platform: musicItem.platform,
+            id: musicItem.id,
+        };
+        this.setCurrentMusic(enriched, false);
+    }
+
+    /**
      * 确认当前播放歌曲——更新 atom、持久化、加载歌词。
      * @param fetchLyric 默认 true；元数据更新时传 false 避免重复加载
      */
@@ -969,6 +972,9 @@ class TrackPlayer {
 
             // 歌词不依赖音频地址，与取源并行，主界面可用后尽快展示歌词
             void this.lyricManager.fetchLyric(musicItem).catch(() => {});
+
+            // 封面同理：重启恢复不会走 playIndex 的 getMusicInfo，需在此补一次
+            void this.enrichMusicInfo(musicItem).catch(() => {});
 
             const localSource = await this.tryLocalSource(musicItem);
             const result = localSource ?? (await this.resolveMediaSource(musicItem, quality));
