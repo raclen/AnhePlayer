@@ -372,6 +372,7 @@
             "download": "下载",
             "lyric": "歌词",
             "plugin": "插件",
+            "network": "网络",
             "backup": "备份与恢复",
             "general": "常规",
             "playback": "播放",
@@ -502,6 +503,22 @@
             "action_like_dislike": "喜欢 / 取消喜欢",
             "action_toggle_minimode": "切换迷你模式",
             "clear_binding": "清除"
+        },
+        "network": {
+            "subtitle": "默认直连，可手动指定代理服务器",
+            "enable_proxy_label": "启用代理",
+            "enable_proxy_desc": "关闭时所有请求直连，不读取系统代理",
+            "host_label": "主机",
+            "host_desc": "代理服务器地址，可只填 IP 或域名",
+            "port_label": "端口",
+            "port_desc": "代理服务器的端口号",
+            "username_label": "账号",
+            "username_desc": "可选，仅代理需要认证时填写",
+            "username_placeholder": "用户名",
+            "password_label": "密码",
+            "password_desc": "可选，仅代理需要认证时填写",
+            "password_placeholder": "密码",
+            "restart": "重启应用生效"
         },
         "backup": {
             "resume_mode_label": "数据恢复方式",

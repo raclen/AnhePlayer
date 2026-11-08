@@ -86,6 +86,17 @@ interface _IAppConfig {
     /** 是否不检测插件版本 */
     'plugin.notCheckPluginVersion': boolean;
 
+    /** 网络代理：是否启用（关闭时全部请求直连） */
+    'network.proxy.enabled': boolean;
+    /** 网络代理：主机，可只填 IP 或域名，也可粘贴 http://host:port */
+    'network.proxy.host': string;
+    /** 网络代理：端口 */
+    'network.proxy.port': string;
+    /** 网络代理：认证账号（可选） */
+    'network.proxy.username': string;
+    /** 网络代理：认证密码（可选） */
+    'network.proxy.password': string;
+
     /** 恢复歌单时行为 */
     'backup.resumeBehavior': 'append' | 'overwrite';
     /** URL */

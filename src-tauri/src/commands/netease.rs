@@ -9,6 +9,8 @@ use std::time::Duration;
 use tauri::webview::{Cookie, NewWindowResponse};
 use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
+use super::network;
+
 const LOGIN_WINDOW_LABEL: &str = "netease-login";
 const LOGIN_URL: &str = "https://music.163.com/#/login";
 const NETEASE_ORIGIN: &str = "https://music.163.com";
@@ -210,10 +212,13 @@ pub async fn netease_request(
         .collect::<Vec<_>>()
         .join("; ");
 
-    let client = reqwest::Client::builder()
-        .timeout(REQUEST_TIMEOUT)
-        .build()
-        .map_err(|e| e.to_string())?;
+    let settings = network::read_settings();
+    let client = network::apply(
+        reqwest::Client::builder().timeout(REQUEST_TIMEOUT),
+        &settings,
+    )
+    .build()
+    .map_err(|e| e.to_string())?;
 
     let mut req = match method {
         NeteaseMethod::Get => client.get(url),

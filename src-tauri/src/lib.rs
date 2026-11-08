@@ -42,8 +42,53 @@ fn restore_main_window(app: &AppHandle) {
     }
 }
 
+/// 只影响播放器进程，不修改 Windows 或代理软件配置。
+///
+/// 默认直连；配置了可用代理时，WebView2 改用该代理（原生客户端由 `network` 模块逐次读取配置）。
+fn configure_network() {
+    let proxy = commands::network::read_settings();
+    let active = proxy.is_active();
+    let webview_arguments = proxy.webview_arguments();
+
+    if active {
+        // 有显式代理时清掉直连标记，避免第三方 HTTP 插件把 NO_PROXY=* 也套到代理请求上
+        std::env::remove_var("NO_PROXY");
+        std::env::remove_var("no_proxy");
+    } else {
+        // 覆盖第三方 HTTP 插件的自动代理；业务客户端与更新器另有显式 no_proxy 保证。
+        std::env::set_var("NO_PROXY", "*");
+        std::env::set_var("no_proxy", "*");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // 只保留与本策略无关的参数；重启会继承旧进程环境变量，必须清掉上一轮的代理开关，
+        // 否则「直连 ↔ 代理」切换后会残留 `--no-proxy-server` 或旧代理地址。
+        let inherited = std::env::var_os("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS")
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let kept: Vec<&str> = inherited
+            .split_whitespace()
+            .filter(|arg| {
+                !arg.starts_with("--no-proxy-server")
+                    && !arg.starts_with("--proxy-server=")
+                    && !arg.starts_with("--proxy-bypass-list=")
+            })
+            .collect();
+        let mut args = kept.join(" ");
+        match webview_arguments {
+            Some(arguments) => args.push_str(&format!(" {arguments}")),
+            // 未启用代理或代理地址不完整时，WebView2 一律直连
+            None => args.push_str(" --no-proxy-server"),
+        }
+        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", args.trim());
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    configure_network();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
@@ -62,6 +107,7 @@ pub fn run() {
             app_config_reset,
             // System Util
             exit_app,
+            restart_app,
             minimize_window,
             show_main_window,
             toggle_maximize,

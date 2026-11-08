@@ -14,6 +14,8 @@ use serde::Serialize;
 use tauri::Emitter;
 use tokio::io::AsyncWriteExt;
 
+use super::network;
+
 /// 活跃下载的取消标志表
 #[derive(Default)]
 pub struct DownloadCancelState(pub Mutex<HashMap<String, Arc<AtomicBool>>>);
@@ -90,11 +92,15 @@ async fn download_inner(
     resume: bool,
     cancel: Arc<AtomicBool>,
 ) -> Result<DownloadFileResult, String> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .connect_timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let settings = network::read_settings();
+    let client = network::apply(
+        reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .connect_timeout(Duration::from_secs(30)),
+        &settings,
+    )
+    .build()
+    .map_err(|e| e.to_string())?;
 
     // 断点续传：以已有临时文件的实际大小为准
     let mut existing: u64 = 0;

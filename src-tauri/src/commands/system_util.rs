@@ -5,6 +5,12 @@ pub fn exit_app(app: AppHandle) {
     app.exit(0);
 }
 
+/// 重启应用：网络代理在 WebView2 启动参数中生效，修改后需重启才作用于网页请求
+#[tauri::command]
+pub fn restart_app(app: AppHandle) {
+    app.request_restart();
+}
+
 #[tauri::command]
 pub fn minimize_window(window: WebviewWindow, skip_task_bar: Option<bool>) {
     let _ = window.minimize();

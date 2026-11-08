@@ -7,12 +7,24 @@
 
 use std::time::Duration;
 
+use super::network;
+
+/// 按当前配置构建客户端；构建失败时退回直连，避免备份通道被代理配置拖垮
 fn client() -> reqwest::Client {
-    reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .connect_timeout(Duration::from_secs(15))
-        .build()
-        .unwrap_or_else(|_| reqwest::Client::new())
+    let settings = network::read_settings();
+    network::apply(
+        reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .connect_timeout(Duration::from_secs(15)),
+        &settings,
+    )
+    .build()
+    .unwrap_or_else(|_| {
+        reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("构建直连 HTTP 客户端失败")
+    })
 }
 
 fn join_url(base: &str, rel_path: &str) -> String {
@@ -65,7 +77,10 @@ pub async fn webdav_put(
     let response = client
         .put(join_url(base, &path))
         .basic_auth(&username, Some(&password))
-        .header(reqwest::header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/json; charset=utf-8",
+        )
         .body(content)
         .send()
         .await

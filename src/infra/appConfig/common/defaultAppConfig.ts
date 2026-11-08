@@ -35,6 +35,12 @@ const defaultAppConfig: IAppConfig = {
     'normal.musicListHideColumns': ['duration'],
     'backup.resumeBehavior': 'append',
     'normal.language': 'zh-CN',
+    // 默认直连；用户可在设置 → 网络里手动填写 HTTP 代理
+    'network.proxy.enabled': false,
+    'network.proxy.host': '',
+    'network.proxy.port': '',
+    'network.proxy.username': '',
+    'network.proxy.password': '',
 };
 
 export default defaultAppConfig;

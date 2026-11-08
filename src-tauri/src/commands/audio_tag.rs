@@ -15,6 +15,8 @@ use lofty::picture::{MimeType, Picture, PictureType};
 use lofty::probe::Probe;
 use lofty::tag::{ItemKey, Tag};
 
+use super::network;
+
 #[tauri::command]
 pub async fn write_audio_meta(
     file_path: String,
@@ -40,12 +42,16 @@ pub async fn write_audio_meta(
 }
 
 async fn download_cover(url: &str) -> Result<(Vec<u8>, MimeType), String> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let settings = network::read_settings();
+    let client = network::apply(
+        reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .timeout(Duration::from_secs(15)),
+        &settings,
+    )
+    .build()
+    .map_err(|e| e.to_string())?;
 
     let resp = client.get(url).send().await.map_err(|e| e.to_string())?;
     if !resp.status().is_success() {

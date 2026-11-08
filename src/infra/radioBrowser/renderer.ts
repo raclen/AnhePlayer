@@ -5,7 +5,11 @@ import {
     isSafeRadioRemoteUrl,
 } from '@common/radioBrowser';
 
-const DISCOVERY_BASE = 'https://all.api.radio-browser.info';
+// 发现服务器：all.api 在部分网络下直连不可达，改用实测可通的节点域名
+const DISCOVERY_BASES = [
+    'https://de1.api.radio-browser.info',
+    'https://all.api.radio-browser.info',
+];
 const CACHE_KEY = 'radioBrowser.lastServer';
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT = 15_000;
@@ -254,18 +258,29 @@ async function requestFromBase<T>(baseUrl: string, path: string): Promise<T> {
 
 async function discoverServers(): Promise<string[]> {
     if (!discoveryPromise) {
-        discoveryPromise = requestFromBase<IRadioBrowserServer[]>(DISCOVERY_BASE, '/json/servers')
-            .then((servers) => {
-                if (!Array.isArray(servers)) return [];
-                return Array.from(
-                    new Set(
-                        servers
-                            .map((server) => normalizeApiBase(server?.name))
-                            .filter((server): server is string => !!server),
-                    ),
-                );
-            })
-            .catch((): string[] => []);
+        discoveryPromise = (async () => {
+            // 逐个尝试发现域名：任一成功即用其结果，全部失败时退回候选列表本身
+            for (const base of DISCOVERY_BASES) {
+                try {
+                    const servers = await requestFromBase<IRadioBrowserServer[]>(
+                        base,
+                        '/json/servers',
+                    );
+                    if (!Array.isArray(servers)) continue;
+                    const names = Array.from(
+                        new Set(
+                            servers
+                                .map((server) => normalizeApiBase(server?.name))
+                                .filter((server): server is string => !!server),
+                        ),
+                    );
+                    if (names.length > 0) return names;
+                } catch {
+                    // 换下一个发现域名
+                }
+            }
+            return [];
+        })();
     }
     return discoveryPromise;
 }
@@ -273,11 +288,11 @@ async function discoverServers(): Promise<string[]> {
 async function getServerCandidates(): Promise<string[]> {
     const cachedCandidates = [preferredBaseUrl, getCachedServer()].filter(Boolean) as string[];
     if (cachedCandidates.length > 0) {
-        return Array.from(new Set([...cachedCandidates, DISCOVERY_BASE]));
+        return Array.from(new Set([...cachedCandidates, ...DISCOVERY_BASES]));
     }
 
     const discovered = await discoverServers();
-    return Array.from(new Set([...discovered, DISCOVERY_BASE]));
+    return Array.from(new Set([...discovered, ...DISCOVERY_BASES]));
 }
 
 async function requestJson<T>(path: string): Promise<T> {

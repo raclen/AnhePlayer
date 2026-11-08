@@ -407,6 +407,26 @@ Get-CimInstance Win32_Process | Where-Object { $_.Name -like '*anhe*' } | ForEac
 
 ---
 
+### 3.3 应用内网络默认直连，可在设置内手动启用代理
+
+**触发信号**：音源经系统代理返回错误，而直连正常；新增原生 HTTP 客户端、WebView 或更新下载路径；调整网络/代理设置。
+
+**根因/约束**：播放器默认不走 Windows 系统代理与代理环境变量，只允许用户在「设置 → 网络」里显式填写一个代理（HTTP/SOCKS5）。reqwest 默认会读取系统/环境代理，WebView2 与更新器各有独立网络栈，不能只改音频下载客户端；WebView2 的代理只能通过进程启动参数注入，改配置后必须重启才生效。
+
+**正确做法**：
+
+1. 所有原生 HTTP 客户端统一经 `commands::network` 注入策略：`read_settings()` → `apply()` / `apply_blocking()` / `apply_updater()`。默认分支必须调用 `no_proxy()`；构建失败的回退客户端也必须直连。保留各路径原有 TLS、超时、重定向与凭据隔离策略。
+2. 局域网（RFC1918）与回环地址通过 `NoProxy` / `--proxy-bypass-list` 始终直连，避免 WebDAV 与插件音源被代理拦截。
+3. 创建任何 WebView 前调用 `configure_network()`：默认设 `NO_PROXY`/`no_proxy=*` 并给 WebView2 追加 `--no-proxy-server`；启用代理时改为 `--proxy-server` + `--proxy-bypass-list`。保留已有浏览器参数，不修改 Windows 或代理软件配置。
+4. SOCKS5 需要 `reqwest` 的 `socks` feature；更新器用的是 reqwest 0.13，feature 全局合并，因此 `Cargo.toml` 保留一条 `reqwest13` 依赖仅为开启该 feature，不要在代码中直接使用。
+5. 保留播放器本地媒体转发服务及其 CORS、Range、`publicOnly`、DNS 绑定等安全边界。更新镜像是显式 HTTPS 请求地址，不属于系统 HTTP 代理，不应删除。
+
+**验证方式**：分别在「直连」与「启用代理」两种配置下验证音源、播放/续传下载、网页资源、网易登录、WebDAV、更新检查与签名下载安装；代理配置变更后需重启应用再验证网页侧。完整原生验证使用 CI 新构建产物，不把旧安装版或仅前端构建当作验证通过。
+
+**适用范围**：应用内 HTTP(S) 网络路径；不控制系统浏览器、VPN/TUN 或透明网络代理。
+
+---
+
 ## 四、已知问题（非本次引入）
 
 - `components/ui/MediaGrid` 用裸 `data.map` 渲染，未做虚拟化（`SongTable`/`QueueDrawer` 已用 react-virtuoso）；被 ArtistPage / RecommendSheetsPage / SearchPage 使用，结果集大时是内存隐患。

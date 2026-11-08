@@ -45,6 +45,7 @@ interface ISaveDialogResult {
 interface IMod {
     app: {
         exitApp(): void;
+        restartApp(): void;
         getCacheSize(): Promise<number>;
         clearCache(): void;
         checkUpdate(): Promise<IUpdateInfo>;
@@ -86,6 +87,11 @@ class SystemUtilRenderer {
     /** 退出应用 */
     public exitApp(): void {
         mod.app.exitApp();
+    }
+
+    /** 重启应用（网络代理等启动参数需重启生效） */
+    public restartApp(): void {
+        mod.app.restartApp();
     }
 
     /** 获取当前缓存大小（字节） */

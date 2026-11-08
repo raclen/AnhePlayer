@@ -13,6 +13,8 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
+use super::network;
+
 /// 代理端口状态（0 表示未启动）
 #[derive(Default)]
 pub struct ForwarderPortState(pub AtomicU16);
@@ -159,9 +161,13 @@ fn handle_request(request: tiny_http::Request, _app: AppHandle) {
         .and_then(|h| serde_json::from_str(h).ok())
         .unwrap_or_default();
 
-    let mut client_builder = reqwest::blocking::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .connect_timeout(Duration::from_secs(15));
+    let settings = network::read_settings();
+    let mut client_builder = network::apply_blocking(
+        reqwest::blocking::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .connect_timeout(Duration::from_secs(15)),
+        &settings,
+    );
     if let Some((host, resolved_address)) = &public_resolution {
         client_builder = client_builder.redirect(reqwest::redirect::Policy::none());
         if let Some(address) = resolved_address {

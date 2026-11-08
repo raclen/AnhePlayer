@@ -2,6 +2,8 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use super::network;
+
 #[derive(Debug, Deserialize)]
 pub struct HttpOptions {
     pub method: Option<String>,
@@ -22,18 +24,20 @@ pub async fn http_request(
     url: String,
     options: Option<HttpOptions>,
 ) -> Result<HttpResponsePayload, String> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()
-        .map_err(|e| e.to_string())?;
+    let settings = network::read_settings();
+    let client = network::apply(
+        reqwest::Client::builder().danger_accept_invalid_certs(true),
+        &settings,
+    )
+    .build()
+    .map_err(|e| e.to_string())?;
 
     let method_str = options
         .as_ref()
         .and_then(|o| o.method.clone())
         .unwrap_or_else(|| "GET".to_string());
 
-    let method = reqwest::Method::from_bytes(method_str.as_bytes())
-        .map_err(|e| e.to_string())?;
+    let method = reqwest::Method::from_bytes(method_str.as_bytes()).map_err(|e| e.to_string())?;
 
     let mut req_builder = client.request(method, &url);
 
@@ -96,12 +100,16 @@ pub async fn probe_media_url(
     url: String,
     headers: Option<HashMap<String, String>>,
 ) -> Result<MediaProbePayload, String> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .timeout(std::time::Duration::from_secs(12))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let settings = network::read_settings();
+    let client = network::apply(
+        reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .timeout(std::time::Duration::from_secs(12)),
+        &settings,
+    )
+    .build()
+    .map_err(|e| e.to_string())?;
 
     let mut req_builder = client
         .get(&url)
@@ -139,4 +147,3 @@ pub async fn probe_media_url(
         final_url,
     })
 }
-

@@ -37,6 +37,9 @@ export function registerSystemUtilBridge(): void {
             exitApp: () => {
                 tauriInvoke('exit_app').catch(console.error);
             },
+            restartApp: () => {
+                tauriInvoke('restart_app').catch(console.error);
+            },
             getCacheSize: async (): Promise<number> => {
                 try {
                     return (await tauriInvoke<number>('get_cache_size')) ?? 0;

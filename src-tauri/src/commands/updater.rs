@@ -7,14 +7,17 @@ use tauri::{AppHandle, Emitter, State, WebviewWindow};
 use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::Mutex;
 
+use super::network;
+
 const MANIFEST_URL: &str =
     "https://github.com/raclen/AnhePlayer/releases/latest/download/latest.json";
 const RELEASE_PREFIX: &str = "https://github.com/raclen/AnhePlayer/releases/download/";
+/// 镜像优先（官方直连在部分网络下超时严重），末位保留官方地址作为兜底
 const MIRRORS: &[&str] = &[
-    "",
+    "https://cdn.gh-proxy.org/",
     "https://gh-proxy.org/",
     "https://hk.gh-proxy.org/",
-    "https://cdn.gh-proxy.org/",
+    "",
 ];
 const PROGRESS_EVENT: &str = "app-update-progress";
 
@@ -111,13 +114,13 @@ pub async fn check_app_update(
     if pending.bytes.is_some() {
         return Ok(update_info(&app, &pending));
     }
+    let settings = network::read_settings();
     let mut last_error = String::new();
     for mirror in MIRRORS {
         let endpoint = format!("{mirror}{MANIFEST_URL}")
             .parse()
             .map_err(|e| format!("更新源配置错误：{e}"))?;
-        let updater = app
-            .updater_builder()
+        let updater = network::apply_updater(app.updater_builder(), &settings)
             .endpoints(vec![endpoint])
             .map_err(|e| e.to_string())?
             .timeout(Duration::from_secs(15))
