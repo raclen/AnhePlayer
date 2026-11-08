@@ -94,7 +94,9 @@ jobs:
 
             - name: Upload Windows Artifacts
               uses: actions/upload-artifact@v4
-              if: matrix.platform == 'windows-latest'
+              # dispatch 验证构建即使卡在 NSIS 等外部下载失败，也要把已编译的 exe 传上来；
+              # 标签发版仍由后续 Publish 步骤保证产物完整。
+              if: always() && matrix.platform == 'windows-latest'
               with:
                   name: AnhePlayer-Tauri-Windows
                   path: |
