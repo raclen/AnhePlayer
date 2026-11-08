@@ -229,7 +229,7 @@ fn export_cover_inner(file_path: &str) -> Result<Option<String>, String> {
     }
     fs::write(&cache_file, data).map_err(|e| e.to_string())?;
 
-    // 同一首歌换了标签后会生成新缓存，清掉同名旧文件（扩展名可能变化）避免堆积
+    // 清掉同名旧文件（扩展名可能变化）
     let sibling_prefix = format!("{cache_stem}.");
     if let Some(dir) = cache_file.parent() {
         if let Ok(entries) = fs::read_dir(dir) {
@@ -241,9 +241,44 @@ fn export_cover_inner(file_path: &str) -> Result<Option<String>, String> {
                 }
             }
         }
+        // 换标签后 stem 会整体变化，上面这步捞不到旧版本；按年龄裁剪兜底
+        prune_stale_covers(dir);
     }
 
     Ok(Some(cache_file.to_string_lossy().to_string()))
+}
+
+/// 封面缓存保留天数
+const COVER_CACHE_MAX_AGE_DAYS: u64 = 30;
+
+/// 删除超过保留期的封面缓存。
+///
+/// 缓存文件名含 mtime+size 哈希，换标签或删除歌曲后旧文件再也匹配不上，
+/// 只能按访问/修改时间回收；get_cache_size 与 clear_cache 都不覆盖该目录，
+/// 不主动裁剪就会永久堆积。
+fn prune_stale_covers(dir: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let max_age = std::time::Duration::from_secs(COVER_CACHE_MAX_AGE_DAYS * 24 * 60 * 60);
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        if !meta.is_file() {
+            continue;
+        }
+        let stale = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .map(|age| age > max_age)
+            .unwrap_or(false);
+        if stale {
+            let _ = fs::remove_file(path);
+        }
+    }
 }
 
 /// 封面缓存目录（Windows 下为 %LOCALAPPDATA%\AnhePlayer\covers）
@@ -263,7 +298,11 @@ fn find_cached_cover(cache_stem: &str) -> Option<String> {
     let prefix = format!("{cache_stem}.");
     for entry in entries.flatten() {
         let path = entry.path();
-        if !path.is_file() {
+        // 写入中途崩溃会留下 0 字节文件，不能当作有效缓存返回
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        if !meta.is_file() || meta.len() == 0 {
             continue;
         }
         let name = entry.file_name().to_string_lossy().to_string();
@@ -277,7 +316,8 @@ fn find_cached_cover(cache_stem: &str) -> Option<String> {
     None
 }
 
-/// 封面缓存文件名（不含扩展名）：按「音频路径 + 修改时间 + 大小」哈希，文件换标签后自动失效
+/// 封面缓存文件名（不含扩展名）：按「音频路径 + 修改时间 + 大小」哈希，文件换标签后自动失效。
+/// mtime 用毫秒：NTFS 精度远高于秒，同秒内改标签同时保持文件大小时秒级会误命中旧缓存。
 fn cover_cache_stem(file_path: &str) -> String {
     let path = Path::new(file_path);
     let stamp = fs::metadata(path)
@@ -287,7 +327,7 @@ fn cover_cache_stem(file_path: &str) -> String {
                 .modified()
                 .ok()
                 .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_secs())
+                .map(|d| d.as_millis())
                 .unwrap_or(0);
             format!("{}-{}", mtime, m.len())
         })
@@ -335,7 +375,8 @@ fn sanitize_file_stem(name: &str) -> String {
     out
 }
 
-/// 标签里的 MIME 缺失或不可用时，按魔数嗅探扩展名
+/// 标签里的 MIME 缺失或不可用时，按魔数嗅探扩展名。
+/// asset 协议按扩展名给 Content-Type，写错会导致图片解码失败。
 fn sniff_image_ext(data: &[u8]) -> &'static str {
     if data.starts_with(&[0xFF, 0xD8]) {
         "jpg"
@@ -345,6 +386,12 @@ fn sniff_image_ext(data: &[u8]) -> &'static str {
         "gif"
     } else if data.starts_with(b"BM") {
         "bmp"
+    } else if data.starts_with(b"II*\0") || data.starts_with(b"MM\0*") {
+        "tif"
+    } else if data.len() > 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
+        "webp"
+    } else if data.len() > 12 && &data[4..8] == b"ftyp" && &data[8..12] == b"avif" {
+        "avif"
     } else {
         "jpg"
     }
