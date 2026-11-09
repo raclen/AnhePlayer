@@ -30,11 +30,13 @@ import Badge from '../../ui/Badge';
 import { RoutePaths } from '../../../routes';
 import type { RoutePath } from '../../../routes';
 import { pendingUpdateAtom } from '@renderer/mainWindow/common/updateNotice';
+import { useConfigValue } from '@renderer/common/hooks/useConfigValue';
 import LocalSheetNavItem from './LocalSheetNavItem';
 import StarredSheetNavItem from './StarredSheetNavItem';
 import './index.scss';
 
-const BRAND_NAME = 'Anhe';
+/** 默认品牌名，用户未自定义时使用 */
+const DEFAULT_BRAND_NAME = 'Anhe';
 
 // 底部工具按钮: icon + route + i18n key
 const FOOTER_TOOLS: { key: RoutePath; icon: LucideIcon; titleKey: string }[] = [
@@ -50,9 +52,16 @@ export default function Sidebar() {
     const sheets = useMusicSheetList();
     const starredSheets = useStarredSheets();
     const pendingUpdate = useAtomValue(pendingUpdateAtom);
+    const [brandName] = useConfigValue('customize.brandName');
+    const [hiddenNavItems] = useConfigValue('customize.hiddenNavItems');
 
     /** 当前路径的第一段，用于匹配静态导航项高亮 */
     const activeSegment = location.pathname.split('/')[1] ?? '';
+
+    /** 自定义品牌名（去首尾空白，留空回退默认名称） */
+    const displayBrandName = brandName?.trim() || DEFAULT_BRAND_NAME;
+    /** 需要在侧边栏隐藏的「在线」入口 */
+    const hiddenNavSet = new Set(hiddenNavItems ?? []);
 
     const handleCreateSheet = useCallback(() => {
         showModal('CreateSheetModal');
@@ -74,12 +83,12 @@ export default function Sidebar() {
             {/* ── Logo ── */}
             <div
                 className="l-sidebar__logo"
-                aria-label={BRAND_NAME}
-                title={BRAND_NAME}
+                aria-label={displayBrandName}
+                title={displayBrandName}
                 data-tauri-drag-region
             >
                 <span className="l-sidebar__logo-text" data-tauri-drag-region>
-                    {BRAND_NAME}
+                    {displayBrandName}
                 </span>
                 {pendingUpdate && (
                     <button
@@ -115,20 +124,24 @@ export default function Sidebar() {
                         activeSegment={activeSegment}
                         navigate={navigate}
                     />
-                    <NavItem
-                        route={RoutePaths.NeteaseRecommend}
-                        icon={Radio}
-                        text={t('netease.nav_title')}
-                        activeSegment={activeSegment}
-                        navigate={navigate}
-                    />
-                    <NavItem
-                        route={RoutePaths.Radio}
-                        icon={Podcast}
-                        text={t('radio.title')}
-                        activeSegment={activeSegment}
-                        navigate={navigate}
-                    />
+                    {!hiddenNavSet.has(RoutePaths.NeteaseRecommend) && (
+                        <NavItem
+                            route={RoutePaths.NeteaseRecommend}
+                            icon={Radio}
+                            text={t('netease.nav_title')}
+                            activeSegment={activeSegment}
+                            navigate={navigate}
+                        />
+                    )}
+                    {!hiddenNavSet.has(RoutePaths.Radio) && (
+                        <NavItem
+                            route={RoutePaths.Radio}
+                            icon={Podcast}
+                            text={t('radio.title')}
+                            activeSegment={activeSegment}
+                            navigate={navigate}
+                        />
+                    )}
                 </div>
                 {/* 本地 */}
                 <div className="l-sidebar__group">

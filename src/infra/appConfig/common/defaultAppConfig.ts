@@ -35,6 +35,8 @@ const defaultAppConfig: IAppConfig = {
     'normal.musicListHideColumns': ['duration'],
     'backup.resumeBehavior': 'append',
     'normal.language': 'zh-CN',
+    'customize.brandName': '',
+    'customize.hiddenNavItems': [],
     // 默认直连；用户可在设置 → 网络里手动填写 HTTP 代理
     'network.proxy.enabled': false,
     'network.proxy.host': '',

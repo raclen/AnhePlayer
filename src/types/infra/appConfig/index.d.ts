@@ -97,6 +97,11 @@ interface _IAppConfig {
     /** 网络代理：认证密码（可选） */
     'network.proxy.password': string;
 
+    /** 定制：左上角品牌名称（留空使用默认名称 Anhe） */
+    'customize.brandName': string;
+    /** 定制：侧边栏「在线」分组中需要隐藏的入口 */
+    'customize.hiddenNavItems': Array<'netease-recommend' | 'radio'>;
+
     /** 恢复歌单时行为 */
     'backup.resumeBehavior': 'append' | 'overwrite';
     /** URL */

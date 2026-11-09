@@ -10,6 +10,7 @@ import {
     DatabaseBackup,
     Info,
     Network,
+    WandSparkles,
 } from 'lucide-react';
 import { TabBar, type TabItem } from '@renderer/mainWindow/components/ui/TabBar';
 import { GeneralSection } from './sections/GeneralSection';
@@ -19,6 +20,7 @@ import { LyricSection } from './sections/LyricSection';
 import { PluginSection } from './sections/PluginSection';
 import { ShortcutSection } from './sections/ShortcutSection';
 import { NetworkSection } from './sections/NetworkSection';
+import { CustomizeSection } from './sections/CustomizeSection';
 import { BackupSection } from './sections/BackupSection';
 import { AboutSection } from './sections/AboutSection';
 import './index.scss';
@@ -33,6 +35,7 @@ const SECTION_MAP: Record<string, () => ReactNode> = {
     plugins: () => <PluginSection />,
     shortcuts: () => <ShortcutSection />,
     network: () => <NetworkSection />,
+    customize: () => <CustomizeSection />,
     backup: () => <BackupSection />,
     about: () => <AboutSection />,
 };
@@ -83,6 +86,11 @@ export default function SettingPage() {
                 key: 'network',
                 label: t('settings.section_name.network'),
                 icon: <Network width={16} height={16} />,
+            },
+            {
+                key: 'customize',
+                label: t('settings.section_name.customize'),
+                icon: <WandSparkles width={16} height={16} />,
             },
             {
                 key: 'backup',

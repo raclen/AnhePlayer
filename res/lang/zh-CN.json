@@ -376,7 +376,8 @@
             "backup": "备份与恢复",
             "general": "常规",
             "playback": "播放",
-            "shortcut": "快捷键"
+            "shortcut": "快捷键",
+            "customize": "定制"
         },
         "general": {
             "subtitle": "启动、语言与基础行为",
@@ -519,6 +520,15 @@
             "password_desc": "可选，仅代理需要认证时填写",
             "password_placeholder": "密码",
             "restart": "重启应用生效"
+        },
+        "customize": {
+            "subtitle": "自定义品牌名称与侧边栏入口",
+            "brand_name_label": "左上角名称",
+            "brand_name_desc": "自定义侧边栏顶部的品牌名称，留空使用默认「Anhe」",
+            "hidden_nav_label": "隐藏侧边栏入口",
+            "hidden_nav_desc": "隐藏后入口不再显示，页面本身仍可通过路由访问",
+            "hide_netease": "网易云推荐",
+            "hide_radio": "电台"
         },
         "backup": {
             "resume_mode_label": "数据恢复方式",
