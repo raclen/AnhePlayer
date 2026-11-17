@@ -89,7 +89,15 @@ fn configure_network() {
 pub fn run() {
     configure_network();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // 必须最先注册：重复启动只唤回已有主窗口，不初始化第二套窗口和播放服务。
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        restore_main_window(app);
+    }));
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
