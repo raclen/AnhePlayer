@@ -10,6 +10,7 @@
  */
 
 import CryptoJS from 'crypto-js';
+import { createQishuiSearchClient } from './qishuiSearch';
 
 // ─── Worker 侧：与宿主的 HTTP 桥 ───
 
@@ -58,7 +59,22 @@ function hostHttp(
 ): Promise<IHostHttpResult> {
     const reqId = `req_${++hostRequestSeq}_${Math.random().toString(36).slice(2)}`;
     return new Promise((resolve, reject) => {
-        pendingHostRequests.set(reqId, { resolve, reject });
+        const timer = options.timeout
+            ? setTimeout(() => {
+                  pendingHostRequests.delete(reqId);
+                  reject(new Error('Host request timed out'));
+              }, options.timeout)
+            : undefined;
+        pendingHostRequests.set(reqId, {
+            resolve: (value) => {
+                if (timer !== undefined) clearTimeout(timer);
+                resolve(value);
+            },
+            reject: (error) => {
+                if (timer !== undefined) clearTimeout(timer);
+                reject(error);
+            },
+        });
         workerScope.postMessage({
             type: 'host_request',
             reqId,
@@ -282,41 +298,8 @@ const NETEASE_HEADERS = {
 };
 
 // 汽水音乐（抖音系）没有出现在洛雪内置音源列表中，但社区音源普遍声明 qs 平台。
-// 音源只负责取流，搜索必须由客户端完成，因此这里直接对接汽水官方 App 接口。
-// 缺少 X-Argus 会被判定为未签名请求，接口返回 empty_search。
-const QISHUI_SEARCH_URL = 'https://api.qishui.com/luna/search/track';
-const QISHUI_API_HEADERS = {
-    'User-Agent':
-        'com.luna.music/100198030 (Linux; U; Android 15; zh_CN_#Hans; ABR-AL80; Build/V417IR;tt-ok/3.12.13.19)',
-    'content-type': 'application/json; charset=UTF-8',
-    'X-Argus': '=',
-    'x-common-params-v2': 'channel=official&aid=386088&device_id=2081836196178571',
-};
-const QISHUI_API_PARAMS = {
-    device_platform: 'android',
-    os: 'android',
-    ssmix: 'a',
-    cdid: '46556f98-1720-4248-83da-62b74b60b46a',
-    channel: 'official',
-    aid: '386088',
-    app_name: 'luna',
-    version_code: '100198030',
-    version_name: '19.8.0',
-    manifest_version_code: '100198030',
-    update_version_code: '100198030',
-    resolution: '1080*1920',
-    dpi: '480',
-    device_type: 'ABR-AL80',
-    device_brand: 'HUAWEI',
-    language: 'zh',
-    os_api: '35',
-    os_version: '15',
-    ac: 'wifi',
-    device_model: 'ABR-AL80',
-    package: 'com.luna.music',
-    device_id: '2204957404565290',
-    iid: '2204957404569386',
-};
+// 音源只负责取流，搜索必须由客户端完成；旧 App 接口返回空响应，改用官方公共目录搜索。
+const searchQishuiTracks = createQishuiSearchClient(hostHttp);
 const KUGOU_HTTPS_AGENT = undefined; // Rust http_request 已忽略证书校验
 
 type ILxRequestHandler = (payload: {
@@ -835,7 +818,7 @@ function mapQishuiSongInfo(track: any, platform: string): IMusic.IMusicItem {
         album: cleanSearchText(track?.album?.name),
         artwork: buildQishuiArtwork(track?.album?.url_cover ?? track?.cover_url),
         duration: normalizeDurationSeconds(track?.duration),
-        // 音源取流依赖原始 track 字段（id / vid / bit_rates 等），不能只传展示字段
+        // 音源取流仍需汽水 ID 与目录字段；匿名客户端令牌和 player_info 不进入结果模型。
         raw: track,
         songmid: id,
         songId: track?.id,
@@ -2038,30 +2021,10 @@ async function searchQishuiMusic(
     page: number,
     platform: string,
 ): Promise<IPlugin.ISearchResult<'music'>> {
-    const currentPage = Math.max(page, 1);
-    const resp = await axios.get(QISHUI_SEARCH_URL, {
-        params: {
-            ...QISHUI_API_PARAMS,
-            _rticket: String(Date.now()),
-            q: query,
-            // 汽水接口用 cursor 而不是页码，按页大小换算
-            cursor: String((currentPage - 1) * LX_SEARCH_PAGE_SIZE),
-            count: String(LX_SEARCH_PAGE_SIZE),
-        },
-        headers: QISHUI_API_HEADERS,
-        timeout: 15000,
-        responseType: 'json',
-    });
-
-    const groups = Array.isArray(resp.data?.result_groups) ? resp.data.result_groups : [];
-    const list = groups
-        .flatMap((group: any) => (Array.isArray(group?.data) ? group.data : []))
-        .map((entry: any) => entry?.entity?.track ?? entry?.track ?? null)
-        .filter(Boolean);
-
+    const result = await searchQishuiTracks(query, Math.max(page, 1));
     return {
-        isEnd: list.length < LX_SEARCH_PAGE_SIZE || !groups.some((group: any) => group?.has_more),
-        data: list.map((track: any) => mapQishuiSongInfo(track, platform)),
+        isEnd: result.isEnd,
+        data: result.tracks.map((track: any) => mapQishuiSongInfo(track, platform)),
     };
 }
 

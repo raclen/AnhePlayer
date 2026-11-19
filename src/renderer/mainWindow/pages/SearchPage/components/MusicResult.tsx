@@ -43,6 +43,7 @@ export function MusicResult({ pluginHash }: MusicResultProps) {
         <SongTable
             data={data}
             requestStatus={status}
+            errorDescription={record?.errorMessage}
             statusColumn={(item) => (
                 <>
                     <FavoriteButton musicItem={item} size="sm" />

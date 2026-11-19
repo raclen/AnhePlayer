@@ -63,6 +63,7 @@ async function fetchPage<T extends SearchMediaType>(
             page,
             isEnd: resIsEnd,
             status: RequestStatus.Done,
+            errorMessage: undefined,
             data: page === 1 ? resData : [...prevData, ...resData],
         });
 
@@ -77,6 +78,8 @@ async function fetchPage<T extends SearchMediaType>(
         console.error(`[useSearch] search failed: ${pluginHash} / ${type} / page ${page}`, err);
         setPluginResult(type, pluginHash, {
             status: RequestStatus.Error,
+            errorMessage:
+                err instanceof Error && err.message.startsWith('汽水') ? err.message : undefined,
         });
         return { success: false, isEnd: true, dataLen: 0 };
     }
@@ -128,6 +131,7 @@ export function useSearch() {
             page: 1,
             isEnd: false,
             status: RequestStatus.Pending,
+            errorMessage: undefined,
             data: [],
         });
 

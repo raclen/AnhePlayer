@@ -37,6 +37,8 @@ export interface IPluginSearchResult<T extends SearchMediaType = SearchMediaType
     isEnd: boolean;
     /** 请求状态 */
     status: RequestStatus;
+    /** 可向用户展示的请求失败原因 */
+    errorMessage?: string;
     /** 累积结果 */
     data: IMedia.SupportMediaItem[T][];
 }
