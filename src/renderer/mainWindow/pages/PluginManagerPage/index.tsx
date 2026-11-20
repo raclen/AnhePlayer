@@ -52,9 +52,7 @@ export default function PluginManagerPage() {
                 <div className="p-plugin-manager__title-group">
                     <h2 className="p-plugin-manager__title">{t('plugin.plugin_management')}</h2>
                     {activeSource && (
-                        <Badge variant="tint" colorScheme="primary">
-                            {`当前音源：${activeSource.name}`}
-                        </Badge>
+                        <Badge variant="tint">{`当前音源：${activeSource.name}`}</Badge>
                     )}
                     {sourceCount > 0 && (
                         <span className="p-plugin-manager__count">

@@ -177,11 +177,7 @@ const PluginItemInfo = memo(function PluginItemInfo({
                     <h3 className="p-plugin-manager__item-name" title={sourceGroup.name}>
                         {sourceGroup.name}
                     </h3>
-                    {sourceGroup.isActive && (
-                        <Badge variant="tint" colorScheme="primary">
-                            使用中
-                        </Badge>
-                    )}
+                    {sourceGroup.isActive && <Badge variant="tint">使用中</Badge>}
                     <AvailabilityBadge availability={availability} />
                     {sourceGroup.version && (
                         <span className="p-plugin-manager__item-version">

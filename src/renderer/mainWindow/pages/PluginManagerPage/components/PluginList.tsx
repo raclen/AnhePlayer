@@ -12,6 +12,8 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { Blocks } from 'lucide-react';
 import { StatusPlaceholder } from '@renderer/mainWindow/components/ui/StatusPlaceholder';
 import { RequestStatus } from '@common/constant';
+import pluginManager, { type IPluginAvailabilityResult } from '@infra/pluginManager/renderer';
+import { useSourceGroups, usePluginAvailability } from '@infra/pluginManager/renderer/hooks';
 import PluginItem from './PluginItem';
 
 const DND_MODIFIERS = [restrictToVerticalAxis];

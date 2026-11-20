@@ -15,6 +15,7 @@
 
 import { useMemo } from 'react';
 import { useAtomValue } from 'jotai/react';
+import { LOCAL_PLUGIN_HASH } from '@common/constant';
 import { pluginsAtom, pluginMetaAtom, pluginAvailabilityAtom, activeSourceHashAtom } from './store';
 import { sortByPluginOrder } from '../common/sortByOrder';
 
