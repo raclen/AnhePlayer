@@ -1,6 +1,6 @@
 /**
  * 洛雪音源名称解析器（PC 端）：
- * 保证音源显示名称和音源检测页面（cf-anheplayer /sources）完全一致，绝不显示文件系统/临时文件名。
+ * 保证音源显示名称和音源检测页面（cf-anheplayer /sources）完全一致，绝不使用文件名称或临时哈希。
  */
 
 export const REMOTE_TITLE_MAP: Record<string, string> = {
@@ -28,25 +28,49 @@ export const KNOWN_NAME_MAP: Record<string, string> = {
     '⭐maflya-lx-音源': 'maflya-lx-音源',
 };
 
-export function parseLxMeta(code: string): { name?: string; version?: string } {
-    const head = (code || '').slice(0, 8000);
+export function parseLxMeta(code: string): {
+    name?: string;
+    version?: string;
+    author?: string;
+    description?: string;
+} {
+    const head = (code || '').slice(0, 10000);
     const get = (key: string) => {
         const match = head.match(new RegExp(`@${key}[ \\t]+([^\\r\\n*]+)`));
         return match ? match[1].trim() : undefined;
     };
+
+    let name = get('name');
+    if (!name) {
+        const nameMatch = head.match(/name\s*:\s*['"]([^'"]+)['"]/);
+        if (nameMatch) {
+            name = nameMatch[1].trim();
+        }
+    }
+
+    let version = get('version');
+    if (!version) {
+        const verMatch = head.match(/version\s*:\s*['"]([^'"]+)['"]/);
+        if (verMatch) {
+            version = verMatch[1].trim();
+        }
+    }
+
     return {
-        name: get('name'),
-        version: get('version'),
+        name,
+        version,
+        author: get('author'),
+        description: get('description'),
     };
 }
 
 /**
  * 解析音源显示名称：
- * 1. 优先匹配检测页面 remote.json 中的在线源标识
- * 2. 匹配脚本内部 @name 在检测页面的特定别名
- * 3. 匹配检测页面本地源标题（从 hintUrlOrName 提取非哈希的有效业务名）
- * 4. 提取脚本内部 @name 及 @version
- * 5. 兜底为“自定义音源”，绝不回退为 .js 文件名或 hash 临时文件名
+ * 1. 优先匹配检测页面 remote.json 中的在线源标识（根据 URL 特征匹配）
+ * 2. 匹配脚本内部元数据（@name 或代码声明的 name）
+ *    - 若匹配已知映射表，则返回音源检测页面的对齐名称
+ *    - 若存在版本号且名称中未包含版本，格式化为 `${name} v${version}`
+ * 3. 兜底返回“自定义音源”，绝不使用任何文件名称或临时哈希。
  */
 export function resolveLxSourceName(code: string, hintUrlOrName = ''): string {
     const hint = (hintUrlOrName || '').toLowerCase();
@@ -66,32 +90,18 @@ export function resolveLxSourceName(code: string, hintUrlOrName = ''): string {
 
     const meta = parseLxMeta(code);
 
-    // 2. 根据脚本元数据的 @name 映射到检测页面标题
-    if (meta.name && KNOWN_NAME_MAP[meta.name]) {
-        return KNOWN_NAME_MAP[meta.name];
-    }
-
-    // 3. 从 hint 提取纯净名称尝试匹配检测页面标题（排除临时/哈希名称）
-    const rawBase = hintUrlOrName.split(/[/\\]/).pop() || '';
-    const cleanHint = rawBase.replace(/\.js$/i, '').trim();
-
-    const isLikelyHash =
-        /^[a-f0-9]{8,64}$/i.test(cleanHint) ||
-        cleanHint.toLowerCase().startsWith('document:') ||
-        cleanHint.toLowerCase().startsWith('blob:') ||
-        cleanHint.toLowerCase().startsWith('temp');
-
-    if (cleanHint.length > 1 && !isLikelyHash && !cleanHint.toLowerCase().endsWith('.js')) {
-        return cleanHint;
-    }
-
-    // 4. 使用脚本中的 @name
+    // 2. 根据脚本元数据的 name 映射到检测页面标题
     if (meta.name) {
-        if (meta.version && !meta.name.includes(meta.version)) {
+        if (KNOWN_NAME_MAP[meta.name]) {
+            return KNOWN_NAME_MAP[meta.name];
+        }
+
+        if (meta.version && !meta.name.toLowerCase().includes(meta.version.toLowerCase())) {
             return `${meta.name} v${meta.version.replace(/^v/i, '')}`;
         }
         return meta.name;
     }
 
+    // 3. 兜底为“自定义音源”，绝不使用任何文件名称
     return '自定义音源';
 }

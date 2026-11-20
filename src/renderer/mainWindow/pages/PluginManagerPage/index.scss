@@ -172,6 +172,13 @@
         flex-shrink: 0;
     }
 
+    &__platforms {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2);
+        margin: var(--space-2) 0;
+    }
+
     &__item-meta {
         font-size: var(--text-caption-size);
         color: var(--color-text-secondary);

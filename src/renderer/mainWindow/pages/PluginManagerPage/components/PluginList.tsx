@@ -10,81 +10,69 @@ import {
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { Blocks } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-
-/** 提取为模块常量，避免每次渲染创建新数组引用 */
-const DND_MODIFIERS = [restrictToVerticalAxis];
-import pluginManager from '@infra/pluginManager/renderer';
-import {
-    usePlugins,
-    usePluginMeta,
-    usePluginAvailability,
-} from '@infra/pluginManager/renderer/hooks';
-import { sortByPluginOrder } from '@infra/pluginManager/common/sortByOrder';
 import { StatusPlaceholder } from '@renderer/mainWindow/components/ui/StatusPlaceholder';
-import { RequestStatus, LOCAL_PLUGIN_HASH } from '@common/constant';
+import { RequestStatus } from '@common/constant';
 import PluginItem from './PluginItem';
 
+const DND_MODIFIERS = [restrictToVerticalAxis];
+
 /**
- * PluginList — 可拖拽排序的插件列表
+ * PluginList — 多音源列表（对齐移动端多音源结构）
  *
- * 使用 @dnd-kit + SortableContext 实现拖拽排序，
- * 拖拽结束后通过 pluginManager.setPluginMeta 持久化排序。
- * 内置插件（LOCAL_PLUGIN_HASH）不显示在列表中。
+ * 以「音源包（脚本）」为维度展示与排序，支持多音源自由切换。
  */
 export default function PluginList() {
-    const { t } = useTranslation();
-    const plugins = usePlugins();
-    const meta = usePluginMeta();
+    const sourceGroups = useSourceGroups();
     const availability = usePluginAvailability();
 
-    // 过滤内置插件 + 按 meta.order 排序
-    const sortedPlugins = useMemo(() => {
-        const filtered = plugins.filter((p) => p.hash !== LOCAL_PLUGIN_HASH);
-        return sortByPluginOrder(filtered, meta);
-    }, [plugins, meta]);
+    const sortedIds = useMemo(() => sourceGroups.map((g) => g.sourceHash), [sourceGroups]);
 
-    const sortedIds = useMemo(() => sortedPlugins.map((p) => p.hash), [sortedPlugins]);
-
-    // ── DnD 传感器 ──
     const sensors = useSensors(useSensor(PointerSensor));
 
-    // ── 拖拽结束 ──
     const handleDragEnd = useCallback(
         (event: DragEndEvent) => {
             const { active, over } = event;
             if (!over || active.id === over.id) return;
 
-            const oldIndex = sortedPlugins.findIndex((p) => p.hash === active.id);
-            const newIndex = sortedPlugins.findIndex((p) => p.hash === over.id);
+            const oldIndex = sourceGroups.findIndex((g) => g.sourceHash === active.id);
+            const newIndex = sourceGroups.findIndex((g) => g.sourceHash === over.id);
             if (oldIndex === -1 || newIndex === -1) return;
 
-            // 计算新顺序
-            const reordered = arrayMove(sortedPlugins, oldIndex, newIndex);
+            const reordered = arrayMove(sourceGroups, oldIndex, newIndex);
 
-            // 为所有插件分配确定性 order（解决首次拖拽时无 order 的插件乱序问题）
-            const updates = reordered.map((p, i) => ({
-                hash: p.hash,
-                meta: { order: i },
-            }));
+            const updates = reordered.flatMap((g, i) =>
+                g.delegates.map((d) => ({
+                    hash: d.hash,
+                    meta: { order: i * 10 },
+                })),
+            );
 
-            // 批量更新：先同步刷新 atom（UI 即时响应），再异步持久化
             pluginManager.batchSetPluginMeta(updates);
         },
-        [sortedPlugins],
+        [sourceGroups],
     );
 
-    const handleToggleEnabled = useCallback((hash: string, enabled: boolean) => {
-        pluginManager.setPluginMeta(hash, { enabled });
-    }, []);
+    const handleToggleEnabled = useCallback(
+        (sourceHash: string, enabled: boolean) => {
+            const targetGroup = sourceGroups.find((g) => g.sourceHash === sourceHash);
+            if (!targetGroup) return;
 
-    if (sortedPlugins.length === 0) {
+            const updates = targetGroup.delegates.map((d) => ({
+                hash: d.hash,
+                meta: { enabled },
+            }));
+            pluginManager.batchSetPluginMeta(updates);
+        },
+        [sourceGroups],
+    );
+
+    if (sourceGroups.length === 0) {
         return (
             <StatusPlaceholder
                 status={RequestStatus.Done}
                 isEmpty
                 emptyIcon={Blocks}
-                emptyTitle={t('plugin.info_hint_you_have_no_plugin')}
+                emptyTitle="尚未导入音源，请点击右上角「安装插件」导入本地或在线音源脚本"
             />
         );
     }
@@ -98,18 +86,42 @@ export default function PluginList() {
         >
             <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
                 <div className="p-plugin-manager__list">
-                    {sortedPlugins.map((plugin) => (
-                        <PluginItem
-                            key={plugin.hash}
-                            plugin={plugin}
-                            enabled={meta[plugin.hash]?.enabled !== false}
-                            availability={availability[plugin.hash]}
-                            sourceRedirectPlatform={
-                                meta[plugin.hash]?.sourceRedirectPlatform ?? null
+                    {sourceGroups.map((group) => {
+                        const childAvailabilities = group.delegates
+                            .map((d) => availability[d.hash])
+                            .filter(Boolean);
+
+                        let groupAvailability: IPluginAvailabilityResult | undefined;
+                        if (childAvailabilities.some((a) => a.state === 'checking')) {
+                            groupAvailability = { state: 'checking' };
+                        } else if (childAvailabilities.length > 0) {
+                            const hasAvailable = childAvailabilities.some(
+                                (a) => a.state === 'available',
+                            );
+                            const hasUnavailable = childAvailabilities.some(
+                                (a) => a.state === 'unavailable',
+                            );
+                            if (hasAvailable && !hasUnavailable) {
+                                groupAvailability = { state: 'available' };
+                            } else if (hasAvailable && hasUnavailable) {
+                                groupAvailability = { state: 'available' }; // 部分或全部可用时标为可用
+                            } else if (!hasAvailable && hasUnavailable) {
+                                groupAvailability = {
+                                    state: 'unavailable',
+                                    message: childAvailabilities.find((a) => a.message)?.message,
+                                };
                             }
-                            onToggleEnabled={handleToggleEnabled}
-                        />
-                    ))}
+                        }
+
+                        return (
+                            <PluginItem
+                                key={group.sourceHash}
+                                sourceGroup={group}
+                                availability={groupAvailability}
+                                onToggleEnabled={handleToggleEnabled}
+                            />
+                        );
+                    })}
                 </div>
             </SortableContext>
         </DndContext>

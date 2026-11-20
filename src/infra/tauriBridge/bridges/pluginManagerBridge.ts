@@ -222,8 +222,16 @@ class TauriPluginManagerService {
 
         try {
             const savedActiveHash = await this.getConfigByKey('plugin.activeSourceHash');
-            if (savedActiveHash) {
+            if (savedActiveHash && this.getPluginsBySourceHash(savedActiveHash).length > 0) {
                 (globalThis as any).__anheActiveSourceHash = savedActiveHash;
+            } else {
+                const firstCustom = Array.from(this.plugins.values()).find(
+                    (p) => !this.isBuiltinPlugin(p),
+                );
+                if (firstCustom?.sourceHash) {
+                    (globalThis as any).__anheActiveSourceHash = firstCustom.sourceHash;
+                    await this.setConfigByKey('plugin.activeSourceHash', firstCustom.sourceHash);
+                }
             }
         } catch {
             // 忽略读取历史激活哈希异常
@@ -563,11 +571,19 @@ class TauriPluginManagerService {
         return { success: true };
     }
 
-    /** 卸载插件 */
-    public async uninstallPlugin(hash: string): Promise<{ success: boolean; message?: string }> {
+    /** 卸载插件或音源脚本 */
+    public async uninstallPlugin(
+        hashOrSourceHash: string,
+    ): Promise<{ success: boolean; message?: string }> {
         await this.pluginsReadyPromise;
 
-        const loaded = this.plugins.get(hash);
+        let loaded = this.plugins.get(hashOrSourceHash);
+        if (!loaded) {
+            const bySource = this.getPluginsBySourceHash(hashOrSourceHash);
+            if (bySource.length > 0) {
+                loaded = bySource[0];
+            }
+        }
         if (!loaded) {
             return { success: false, message: 'Plugin not found' };
         }
@@ -587,6 +603,20 @@ class TauriPluginManagerService {
             this.plugins.delete(item.hash);
         }
         await this.saveMeta();
+
+        // 如果卸载的是当前激活音源，自动切换到下一个可用音源
+        if ((globalThis as any).__anheActiveSourceHash === loaded.sourceHash) {
+            const remainingNonBuiltin = Array.from(this.plugins.values()).filter(
+                (p) => !this.isBuiltinPlugin(p),
+            );
+            const nextActive = remainingNonBuiltin[0]?.sourceHash || '';
+            (globalThis as any).__anheActiveSourceHash = nextActive;
+            try {
+                await this.setConfigByKey('plugin.activeSourceHash', nextActive);
+            } catch {
+                // 忽略异常
+            }
+        }
 
         this.onPluginListChanged();
         return { success: true };

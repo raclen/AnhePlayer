@@ -10,7 +10,6 @@ import {
     ListPlus,
     SlidersHorizontal,
     Trash2,
-    Check,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@renderer/mainWindow/components/ui/Button';
@@ -19,7 +18,7 @@ import { Toggle } from '@renderer/mainWindow/components/ui/Toggle';
 import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager';
 import { showToast } from '@renderer/mainWindow/components/ui/Toast';
 import pluginManager from '@infra/pluginManager/renderer';
-import { useActiveSourceHash } from '@infra/pluginManager/renderer/hooks';
+import type { ISourceGroup } from '@infra/pluginManager/renderer/hooks';
 import type { IPluginAvailabilityResult } from '@infra/pluginManager/renderer';
 import { cn } from '@common/cn';
 
@@ -34,16 +33,12 @@ const METHOD_LABEL_MAP: Record<string, string> = {
     getRecommendSheetTags: 'plugin.method_get_recommend_sheet_tags',
 };
 
-/** 提取为模块常量，避免每次渲染创建新的函数引用 */
 const noAnimateLayoutChanges = () => false;
 
 export interface PluginItemProps {
-    plugin: IPlugin.IPluginDelegate;
-    enabled: boolean;
-    /** 音源可用性检测结果；undefined 表示尚未检测 */
+    sourceGroup: ISourceGroup;
     availability?: IPluginAvailabilityResult;
-    sourceRedirectPlatform?: string | null;
-    onToggleEnabled: (hash: string, enabled: boolean) => void;
+    onToggleEnabled: (sourceHash: string, enabled: boolean) => void;
 }
 
 /** 音源可用性状态徽章 */
@@ -77,19 +72,9 @@ function AvailabilityBadge({ availability }: { availability?: IPluginAvailabilit
 }
 
 /**
- * PluginItem — 单个插件卡片（可排序包装层）
- *
- * 集成 @dnd-kit/sortable 实现拖拽排序。
- * 仅处理拖拽定位逻辑；内容委托给 memo 化的子组件，
- * 从而避免拖拽期间 DndContext 频繁更新引发所有卡片的重渲染。
+ * PluginItem — 单个音源卡片（以音源包为维度，对齐移动端结构）
  */
-function PluginItem({
-    plugin,
-    enabled,
-    availability,
-    sourceRedirectPlatform,
-    onToggleEnabled,
-}: PluginItemProps) {
+function PluginItem({ sourceGroup, availability, onToggleEnabled }: PluginItemProps) {
     const { t } = useTranslation();
 
     const {
@@ -101,7 +86,7 @@ function PluginItem({
         transition,
         isDragging,
     } = useSortable({
-        id: plugin.hash,
+        id: sourceGroup.sourceHash,
         animateLayoutChanges: noAnimateLayoutChanges,
     });
 
@@ -124,7 +109,7 @@ function PluginItem({
             className={cn(
                 'p-plugin-manager__item',
                 isDragging && 'is-dragging',
-                !enabled && 'is-disabled',
+                !sourceGroup.enabled && 'is-disabled',
             )}
         >
             {/* 第一行：拖拽手柄 + 基本信息 + 右侧操作 */}
@@ -142,82 +127,68 @@ function PluginItem({
                 </div>
 
                 <PluginItemInfo
-                    plugin={plugin}
-                    enabled={enabled}
+                    sourceGroup={sourceGroup}
                     availability={availability}
-                    sourceRedirectPlatform={sourceRedirectPlatform}
                     onToggleEnabled={onToggleEnabled}
                 />
             </div>
 
             {/* 第二行：操作按钮 */}
-            <PluginItemActions plugin={plugin} />
+            <PluginItemActions sourceGroup={sourceGroup} />
         </div>
     );
 }
 
-// ── 信息区 + 开关（memo 化，拖拽期间不重渲染） ──
+// ── 信息区 + 切换与开关 ──
 
 const PluginItemInfo = memo(function PluginItemInfo({
-    plugin,
-    enabled,
+    sourceGroup,
     availability,
-    sourceRedirectPlatform,
     onToggleEnabled,
 }: PluginItemProps) {
     const { t } = useTranslation();
-    const activeSourceHash = useActiveSourceHash();
-    const isCurrentActive = !!plugin.sourceHash && plugin.sourceHash === activeSourceHash;
-
-    const displayName = plugin.sourceName || plugin.platform;
-    const showPlatformBadge = !!plugin.sourceName && plugin.sourceName !== plugin.platform;
 
     // ── 能力标签：支持xx/xx/xx功能 ──
     const capabilities = useMemo(() => {
-        const labels = plugin.supportedMethod
+        const labels = sourceGroup.supportedMethods
             .filter((m) => m in METHOD_LABEL_MAP)
             .map((m) => t(METHOD_LABEL_MAP[m]));
         if (labels.length === 0) return '';
         return t('plugin.supports_features', { features: labels.join('/') });
-    }, [plugin.supportedMethod, t]);
+    }, [sourceGroup.supportedMethods, t]);
+
+    const mainDelegate = sourceGroup.delegates[0];
 
     const handleDescription = useCallback(() => {
-        showModal('PluginDescriptionModal', { plugin });
-    }, [plugin]);
+        if (mainDelegate) {
+            showModal('PluginDescriptionModal', { plugin: mainDelegate });
+        }
+    }, [mainDelegate]);
 
     const handleSwitchActive = useCallback(async () => {
-        if (!plugin.sourceHash) return;
-        await pluginManager.setActiveSourceHash(plugin.sourceHash);
-        showToast(
-            t('plugin.switched_to_source', {
-                defaultValue: `已切换为当前音源：${displayName}`,
-                name: displayName,
-            }),
-        );
-    }, [plugin.sourceHash, displayName, t]);
+        await pluginManager.setActiveSourceHash(sourceGroup.sourceHash);
+        showToast(`已切换为当前音源：${sourceGroup.name}`);
+    }, [sourceGroup.sourceHash, sourceGroup.name]);
 
     return (
         <>
             <div className="p-plugin-manager__item-info">
                 <div className="p-plugin-manager__item-title-row">
-                    <h3 className="p-plugin-manager__item-name" title={displayName}>
-                        {displayName}
+                    <h3 className="p-plugin-manager__item-name" title={sourceGroup.name}>
+                        {sourceGroup.name}
                     </h3>
-                    {showPlatformBadge && <Badge variant="outline">{plugin.platform}</Badge>}
-                    {isCurrentActive && (
+                    {sourceGroup.isActive && (
                         <Badge variant="tint" colorScheme="primary">
-                            当前音源
+                            使用中
                         </Badge>
                     )}
                     <AvailabilityBadge availability={availability} />
-                    {plugin.version && (
+                    {sourceGroup.version && (
                         <span className="p-plugin-manager__item-version">
-                            {t('plugin.version_label', {
-                                version: plugin.version,
-                            })}
+                            {`v${sourceGroup.version.replace(/^v/i, '')}`}
                         </span>
                     )}
-                    {plugin.description && (
+                    {sourceGroup.description && (
                         <button
                             type="button"
                             className="p-plugin-manager__help-btn"
@@ -227,35 +198,40 @@ const PluginItemInfo = memo(function PluginItemInfo({
                             <HelpCircle size={16} />
                         </button>
                     )}
-                    {sourceRedirectPlatform && (
-                        <Badge variant="tint">
-                            {t('plugin.source_redirect_to', {
-                                target: sourceRedirectPlatform,
-                            })}
-                        </Badge>
-                    )}
                 </div>
+
+                {/* 平台支持胶囊列表 */}
+                {sourceGroup.platformNames.length > 0 && (
+                    <div className="p-plugin-manager__platforms">
+                        {sourceGroup.platformNames.map((pName) => (
+                            <Badge key={pName} variant="outline">
+                                {pName}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
+
                 <p className="p-plugin-manager__item-meta">
-                    {plugin.author && <span>{plugin.author}</span>}
-                    {plugin.author && capabilities && <span> · </span>}
+                    {sourceGroup.author && <span>{sourceGroup.author}</span>}
+                    {sourceGroup.author && capabilities && <span> · </span>}
                     {capabilities && <span>{capabilities}</span>}
                 </p>
             </div>
 
             <div className="p-plugin-manager__item-right">
-                {!isCurrentActive && plugin.sourceHash && (
+                {!sourceGroup.isActive && (
                     <Button
                         variant="secondary"
                         size="sm"
-                        icon={<Check size={14} />}
+                        icon={<ArrowRightLeft size={14} />}
                         onClick={handleSwitchActive}
                     >
                         切换
                     </Button>
                 )}
                 <Toggle
-                    checked={enabled}
-                    onChange={(checked) => onToggleEnabled(plugin.hash, checked)}
+                    checked={sourceGroup.enabled}
+                    onChange={(checked) => onToggleEnabled(sourceGroup.sourceHash, checked)}
                     aria-label={t('plugin.toggle_enable')}
                 />
             </div>
@@ -263,61 +239,46 @@ const PluginItemInfo = memo(function PluginItemInfo({
     );
 });
 
-// ── 操作按钮行（memo 化，拖拽期间不重渲染） ──
+// ── 操作按钮行 ──
 
 const PluginItemActions = memo(function PluginItemActions({
-    plugin,
+    sourceGroup,
 }: {
-    plugin: IPlugin.IPluginDelegate;
+    sourceGroup: ISourceGroup;
 }) {
     const { t } = useTranslation();
-
-    // 是否有更新源
-    const hasUpdateSource = !!plugin.srcUrl;
-
-    // 更新加载状态
+    const mainDelegate = sourceGroup.delegates[0];
+    const hasUpdateSource = !!sourceGroup.srcUrl;
     const [updating, setUpdating] = useState(false);
 
-    // ── 操作回调 ──
-
     const handleUpdate = useCallback(async () => {
+        if (!mainDelegate) return;
         setUpdating(true);
         try {
-            const result = await pluginManager.updatePlugin(plugin.hash);
+            const result = await pluginManager.updatePlugin(mainDelegate.hash);
             if (result.success) {
-                showToast(t('plugin.toast_plugin_updated', { plugin: plugin.platform }));
+                showToast(`音源 ${sourceGroup.name} 更新成功`);
             } else {
-                showToast(
-                    t('plugin.toast_plugin_already_latest', {
-                        plugin: plugin.platform,
-                    }),
-                );
+                showToast(`音源 ${sourceGroup.name} 已是最新版本`);
             }
         } catch {
             showToast(t('plugin.update_failed'), { type: 'warn' });
         } finally {
             setUpdating(false);
         }
-    }, [plugin.hash, plugin.platform, t]);
+    }, [mainDelegate, sourceGroup.name, t]);
 
     const handleUninstall = useCallback(() => {
-        const displayName = plugin.sourceName || plugin.platform;
         showModal('ConfirmModal', {
-            title: t('plugin.uninstall_plugin'),
-            message: t('plugin.uninstall_warning'),
-            description: t('plugin.confirm_text_uninstall_plugin', {
-                plugin: displayName,
-            }),
-            confirmText: t('plugin.confirm_uninstall'),
+            title: '卸载音源',
+            message: '卸载后该音源提供的所有平台播放与搜索能力将被移除。',
+            description: `确定要卸载音源「${sourceGroup.name}」吗？`,
+            confirmText: '确认卸载',
             confirmDanger: true,
             onConfirm: async () => {
-                const result = await pluginManager.uninstallPlugin(plugin.hash);
+                const result = await pluginManager.uninstallPlugin(sourceGroup.sourceHash);
                 if (result.success) {
-                    showToast(
-                        t('plugin.uninstall_successfully', {
-                            plugin: displayName,
-                        }),
-                    );
+                    showToast(`已成功卸载音源：${sourceGroup.name}`);
                 } else {
                     showToast(result.message ?? t('plugin.uninstall_failed'), {
                         type: 'warn',
@@ -326,27 +287,35 @@ const PluginItemActions = memo(function PluginItemActions({
                 }
             },
         });
-    }, [plugin, t]);
+    }, [sourceGroup.sourceHash, sourceGroup.name, t]);
 
     const handleImportTrack = useCallback(() => {
-        showModal('PluginImportModal', { plugin, type: 'importMusicItem' });
-    }, [plugin]);
+        if (mainDelegate) {
+            showModal('PluginImportModal', { plugin: mainDelegate, type: 'importMusicItem' });
+        }
+    }, [mainDelegate]);
 
     const handleImportSheet = useCallback(() => {
-        showModal('PluginImportModal', { plugin, type: 'importMusicSheet' });
-    }, [plugin]);
+        if (mainDelegate) {
+            showModal('PluginImportModal', { plugin: mainDelegate, type: 'importMusicSheet' });
+        }
+    }, [mainDelegate]);
 
     const handleUserVariables = useCallback(() => {
-        showModal('PluginUserVariableModal', { plugin });
-    }, [plugin]);
+        if (mainDelegate) {
+            showModal('PluginUserVariableModal', { plugin: mainDelegate });
+        }
+    }, [mainDelegate]);
 
     const handleSourceRedirect = useCallback(() => {
-        showModal('PluginSourceRedirectModal', { plugin });
-    }, [plugin]);
+        if (mainDelegate) {
+            showModal('PluginSourceRedirectModal', { plugin: mainDelegate });
+        }
+    }, [mainDelegate]);
 
     return (
         <div className="p-plugin-manager__item-actions">
-            {plugin.supportedMethod.includes('getMediaSource') && (
+            {sourceGroup.supportedMethods.includes('getMediaSource') && (
                 <Button
                     variant="secondary"
                     size="sm"
@@ -367,7 +336,7 @@ const PluginItemActions = memo(function PluginItemActions({
                     {t('plugin.update')}
                 </Button>
             )}
-            {plugin.supportedMethod.includes('importMusicItem') && (
+            {sourceGroup.supportedMethods.includes('importMusicItem') && (
                 <Button
                     variant="secondary"
                     size="sm"
@@ -377,7 +346,7 @@ const PluginItemActions = memo(function PluginItemActions({
                     {t('plugin.method_import_music_item')}
                 </Button>
             )}
-            {plugin.supportedMethod.includes('importMusicSheet') && (
+            {sourceGroup.supportedMethods.includes('importMusicSheet') && (
                 <Button
                     variant="secondary"
                     size="sm"
@@ -387,7 +356,7 @@ const PluginItemActions = memo(function PluginItemActions({
                     {t('plugin.method_import_music_sheet')}
                 </Button>
             )}
-            {(plugin.userVariables?.length ?? 0) > 0 && (
+            {(mainDelegate?.userVariables?.length ?? 0) > 0 && (
                 <Button
                     variant="secondary"
                     size="sm"
@@ -410,12 +379,4 @@ const PluginItemActions = memo(function PluginItemActions({
     );
 });
 
-export default memo(
-    PluginItem,
-    (prev, next) =>
-        prev.plugin === next.plugin &&
-        prev.enabled === next.enabled &&
-        prev.availability === next.availability &&
-        prev.sourceRedirectPlatform === next.sourceRedirectPlatform &&
-        prev.onToggleEnabled === next.onToggleEnabled,
-);
+export default memo(PluginItem);

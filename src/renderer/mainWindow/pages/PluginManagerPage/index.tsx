@@ -5,36 +5,29 @@ import { Button } from '@renderer/mainWindow/components/ui/Button';
 import { Badge } from '@renderer/mainWindow/components/ui/Badge';
 import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager';
 import { showToast } from '@renderer/mainWindow/components/ui/Toast';
-import { usePlugins, useActiveSourceHash } from '@infra/pluginManager/renderer/hooks';
+import { useSourceGroups } from '@infra/pluginManager/renderer/hooks';
 import pluginManager from '@infra/pluginManager/renderer';
-import { LOCAL_PLUGIN_HASH } from '@common/constant';
 import PluginList from './components/PluginList';
 import './index.scss';
 
 /**
- * PluginManagerPage — 插件管理页面
+ * PluginManagerPage — 插件/音源管理页面
  *
- * 顶部固定标题 + 操作栏，下方为可拖拽排序的插件列表。
- * 设计稿还原：Plugins.tsx (设计稿)
+ * 顶部固定标题 + 操作栏，下方为多音源列表与切换视图（对齐移动端多音源结构）。
  */
 export default function PluginManagerPage() {
     const { t } = useTranslation();
-    const plugins = usePlugins();
-    const activeSourceHash = useActiveSourceHash();
-    const activePlugin = useMemo(
-        () =>
-            plugins.find((p) => p.sourceHash === activeSourceHash && p.hash !== LOCAL_PLUGIN_HASH),
-        [plugins, activeSourceHash],
+    const sourceGroups = useSourceGroups();
+    const activeSource = useMemo(
+        () => sourceGroups.find((g) => g.isActive) || sourceGroups[0],
+        [sourceGroups],
     );
-    const pluginCount = useMemo(
-        () => plugins.filter((p) => p.hash !== LOCAL_PLUGIN_HASH).length,
-        [plugins],
-    );
+    const sourceCount = sourceGroups.length;
     const [checking, setChecking] = useState(false);
 
-    /** 检测列表中全部音源是否可用 */
+    /** 检测列表中全部音源平台的可用性 */
     const handleCheckSources = useCallback(async () => {
-        const hashes = plugins.filter((p) => p.hash !== LOCAL_PLUGIN_HASH).map((p) => p.hash);
+        const hashes = sourceGroups.flatMap((g) => g.delegates.map((d) => d.hash));
         if (hashes.length === 0) return;
 
         setChecking(true);
@@ -50,7 +43,7 @@ export default function PluginManagerPage() {
         } finally {
             setChecking(false);
         }
-    }, [plugins, t]);
+    }, [sourceGroups, t]);
 
     return (
         <div className="p-plugin-manager">
@@ -58,14 +51,14 @@ export default function PluginManagerPage() {
             <div className="p-plugin-manager__header">
                 <div className="p-plugin-manager__title-group">
                     <h2 className="p-plugin-manager__title">{t('plugin.plugin_management')}</h2>
-                    {activePlugin && (
+                    {activeSource && (
                         <Badge variant="tint" colorScheme="primary">
-                            {`当前音源：${activePlugin.sourceName || activePlugin.platform}`}
+                            {`当前音源：${activeSource.name}`}
                         </Badge>
                     )}
-                    {pluginCount > 0 && (
+                    {sourceCount > 0 && (
                         <span className="p-plugin-manager__count">
-                            {t('plugin.plugin_count', { count: pluginCount })}
+                            {`共 ${sourceCount} 个音源`}
                         </span>
                     )}
                 </div>
@@ -75,7 +68,7 @@ export default function PluginManagerPage() {
                         size="md"
                         icon={<Activity size={16} />}
                         loading={checking}
-                        disabled={pluginCount === 0}
+                        disabled={sourceCount === 0}
                         onClick={handleCheckSources}
                     >
                         {t('plugin.check_source')}
@@ -91,7 +84,7 @@ export default function PluginManagerPage() {
                 </div>
             </div>
 
-            {/* 插件列表 */}
+            {/* 音源列表 */}
             <div className="p-plugin-manager__body">
                 <PluginList />
             </div>
