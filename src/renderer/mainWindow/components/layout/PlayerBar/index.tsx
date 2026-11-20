@@ -3,7 +3,16 @@
 // ============================================================================
 
 import { useEffect } from 'react';
-import { SkipBack, SkipForward, Play, Pause, ListMusic, Maximize2, Shuffle } from 'lucide-react';
+import {
+    SkipBack,
+    SkipForward,
+    Play,
+    Pause,
+    ListMusic,
+    Maximize2,
+    Shuffle,
+    Loader2,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DesktopLyric } from '@renderer/common/icons';
 import { cn } from '@common/cn';
@@ -55,6 +64,7 @@ export default function PlayerBar() {
     const [enableDesktopLyric] = useConfigValue('lyric.enableDesktopLyric');
 
     const isPlaying = playerState === PlayerState.Playing;
+    const isBuffering = playerState === PlayerState.Buffering;
     const isRadio = isRadioBrowserMedia(currentMusic);
     const hasMusic = currentMusic != null && !isRadio;
     const isLive = false;
@@ -180,10 +190,18 @@ export default function PlayerBar() {
                     <button
                         className="l-player-bar__ctrl-btn l-player-bar__ctrl-btn--play"
                         type="button"
-                        title={isPlaying ? t('playback.pause') : t('playback.play')}
+                        title={
+                            isBuffering
+                                ? t('playback.buffering')
+                                : isPlaying
+                                  ? t('playback.pause')
+                                  : t('playback.play')
+                        }
                         onClick={() => trackPlayer.togglePlayPause()}
                     >
-                        {isPlaying ? (
+                        {isBuffering ? (
+                            <Loader2 size={18} className="l-player-bar__buffering" />
+                        ) : isPlaying ? (
                             <Pause size={18} fill="currentColor" />
                         ) : (
                             // 播放三角形视觉居中补偿 2px

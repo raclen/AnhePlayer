@@ -143,6 +143,7 @@ class TrackPlayer {
     private readonly MAX_CONSECUTIVE_ERRORS = 3;
     private sourceRetryMusicKey = '';
     private sourceRetryTriedHashes = new Set<string>();
+    private playbackActionId = 0; // 手动暂停/切歌使异步换源结果失效
 
     // ─── 启动恢复 ───
 
@@ -251,6 +252,7 @@ class TrackPlayer {
         options: IPlayOptions = { restartOnSameMedia: true },
     ): Promise<void> {
         if (this.playQueue.isEmpty) return;
+        const actionId = ++this.playbackActionId;
 
         const queue = this.playQueue.queue;
         index = ((index % queue.length) + queue.length) % queue.length;
@@ -271,8 +273,8 @@ class TrackPlayer {
         // 切歌
         this.playQueue.setCurrentIndex(index);
         store.set(currentMusicAtom, targetSlim);
-        store.set(playerStateAtom, PlayerState.Buffering);
         this.audioController.prepareTrack(targetSlim);
+        store.set(playerStateAtom, PlayerState.Buffering);
         this.resetProgress();
 
         try {
@@ -290,7 +292,7 @@ class TrackPlayer {
             const result = localSource ?? (await this.resolveMediaSource(musicItem, quality));
 
             if (!result?.url) throw new Error('No media source');
-            if (!this.isCurrentMusic(targetSlim)) return; // 切歌了
+            if (this.playbackActionId !== actionId || !this.isCurrentMusic(targetSlim)) return;
 
             // 直播固定 1× 播放，但不覆盖用户保存的歌曲倍速。
             this.audioController.setSpeed(isLive ? 1 : store.get(speedAtom));
@@ -315,7 +317,7 @@ class TrackPlayer {
             }
         } catch (e) {
             // 旧曲目的异步请求晚于新曲目失败时，不得重置后来已经开始的播放。
-            if (!this.isCurrentMusic(targetSlim)) return;
+            if (this.playbackActionId !== actionId || !this.isCurrentMusic(targetSlim)) return;
             this.audioController.reset();
             await this.handlePlayError(targetSlim, e);
         }
@@ -402,10 +404,14 @@ class TrackPlayer {
     }
 
     pause(): void {
+        this.playbackActionId++;
         this.audioController.pause();
+        // 换源等待时底层已暂停，不会再发 stateChange，仍需退出界面的缓冲状态。
+        store.set(playerStateAtom, PlayerState.Paused);
     }
 
     resume(): void {
+        this.playbackActionId++;
         if (!this.audioController.hasSource) {
             // 无音源（如恢复失败），尝试重新加载当前曲目
             const idx = this.playQueue.getCurrentIndex();
@@ -418,7 +424,11 @@ class TrackPlayer {
     }
 
     togglePlayPause(): void {
-        if (this.audioController.playerState === PlayerState.Playing) {
+        if (
+            this.audioController.playerState === PlayerState.Playing ||
+            this.audioController.playerState === PlayerState.Buffering ||
+            store.get(playerStateAtom) === PlayerState.Buffering
+        ) {
             this.pause();
         } else {
             this.resume();
@@ -459,9 +469,12 @@ class TrackPlayer {
         if (isRadioBrowserMedia(current)) return false;
         const prevQuality = store.get(qualityAtom);
         if (!current || quality === prevQuality) return true;
+        const actionId = ++this.playbackActionId;
 
         const currentTime = store.get(progressAtom).currentTime;
-        const wasPlaying = this.audioController.playerState === PlayerState.Playing;
+        const wasPlaying =
+            this.audioController.playerState === PlayerState.Playing ||
+            this.audioController.playerState === PlayerState.Buffering;
 
         try {
             store.set(playerStateAtom, PlayerState.Buffering);
@@ -474,8 +487,9 @@ class TrackPlayer {
             // 切换音质：仅在音质匹配时使用本地文件
             const localSource = await this.tryLocalSource(musicItem, quality);
             const result = localSource ?? (await this.resolveMediaSource(musicItem, quality));
+            if (this.playbackActionId !== actionId || !this.isCurrentMusic(current)) return false;
 
-            if (result?.url && this.isCurrentMusic(current)) {
+            if (result?.url) {
                 this.audioController.setTrackSource(result, musicItem);
                 this.markPlaybackSource(musicItem.platform);
                 this.audioController.seekTo(currentTime);
@@ -490,6 +504,7 @@ class TrackPlayer {
                 return false;
             }
         } catch {
+            if (this.playbackActionId !== actionId || !this.isCurrentMusic(current)) return false;
             // 切换失败，恢复原音质标记
             store.set(qualityAtom, prevQuality);
             store.set(playerStateAtom, wasPlaying ? PlayerState.Playing : PlayerState.Paused);
@@ -538,6 +553,7 @@ class TrackPlayer {
 
     /** 清空当前播放状态 */
     clearPlayback(): void {
+        this.playbackActionId++;
         this.audioController.reset();
         this.lyricManager.reset();
         this.resetSourceRetryState();
@@ -641,7 +657,9 @@ class TrackPlayer {
     // ─── 错误处理 ───
 
     private async handlePlayError(musicItem: IMusicItemSlim | null, _error?: any): Promise<void> {
-        this.resetProgress();
+        if (!musicItem || !this.isCurrentMusic(musicItem)) return;
+        const actionId = ++this.playbackActionId;
+        const resumeAt = store.get(progressAtom).currentTime;
 
         if (isRadioBrowserMedia(musicItem)) {
             this.audioController.reset();
@@ -665,8 +683,9 @@ class TrackPlayer {
             musicItem &&
             this.consecutiveErrors < this.MAX_CONSECUTIVE_ERRORS
         ) {
-            const retried = await this.retryWithAlternativeSource(musicItem);
+            const retried = await this.retryWithAlternativeSource(musicItem, actionId, resumeAt);
             if (retried) return;
+            if (this.playbackActionId !== actionId || !this.isCurrentMusic(musicItem)) return;
         }
 
         if (
@@ -676,7 +695,7 @@ class TrackPlayer {
         ) {
             // 主路径：跳到下一首
             await delay(500);
-            if (musicItem && this.isCurrentMusic(musicItem)) {
+            if (this.playbackActionId === actionId && this.isCurrentMusic(musicItem)) {
                 await this.skipToNext();
             }
         } else if (this.consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
@@ -690,11 +709,16 @@ class TrackPlayer {
         }
     }
 
-    private async retryWithAlternativeSource(musicItem: IMusicItemSlim): Promise<boolean> {
-        if (!this.isCurrentMusic(musicItem)) return false;
+    private async retryWithAlternativeSource(
+        musicItem: IMusicItemSlim,
+        actionId: number,
+        resumeAt: number,
+    ): Promise<boolean> {
+        const isActive = () => this.playbackActionId === actionId && this.isCurrentMusic(musicItem);
+        if (!isActive()) return false;
 
         const sourceMusic = await this.getPlayableMusicItem(musicItem);
-        if (!this.isCurrentMusic(musicItem)) return false;
+        if (!isActive()) return false;
 
         this.ensureSourceRetryState(musicItem);
 
@@ -712,10 +736,12 @@ class TrackPlayer {
         store.set(playerStateAtom, PlayerState.Buffering);
 
         for (const plugin of candidates) {
+            if (!isActive()) return false;
             this.sourceRetryTriedHashes.add(plugin.hash);
 
             const candidateMusic = await this.resolveAlternativeMusicItem(sourceMusic, plugin);
-            if (!candidateMusic || !this.isCurrentMusic(musicItem)) continue;
+            if (!isActive()) return false;
+            if (!candidateMusic) continue;
 
             try {
                 const quality: IMusic.IQualityKey = 'standard';
@@ -727,12 +753,14 @@ class TrackPlayer {
                     qualityFallbackOrder: this.getQualityFallbackOrder(),
                 });
 
-                if (!result?.url || !this.isCurrentMusic(musicItem)) continue;
+                if (!isActive()) return false;
+                if (!result?.url) continue;
 
                 const resolvedQuality = result.quality ?? quality;
                 store.set(qualityAtom, resolvedQuality);
                 syncKV.set('player.currentQuality', resolvedQuality);
                 this.audioController.setTrackSource(result, candidateMusic);
+                this.audioController.seekTo(resumeAt);
                 this.markPlaybackSource(candidateMusic.platform, sourceMusic.platform);
                 this.audioController.play();
                 this.consecutiveErrors = 0;

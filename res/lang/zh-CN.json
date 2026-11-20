@@ -189,6 +189,7 @@
         "play": "播放",
         "play_item": "播放「{{title}}」",
         "pause": "暂停",
+        "buffering": "正在缓冲或切换音源，点击暂停",
         "show_queue": "播放列表",
         "mute": "静音",
         "unmute": "取消静音",

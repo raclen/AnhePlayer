@@ -162,6 +162,20 @@
         gap: var(--space-2);
     }
 
+    &__buffering {
+        animation: player-bar-buffering 1s linear infinite;
+
+        @media (prefers-reduced-motion: reduce) {
+            animation: none;
+        }
+    }
+
+    @keyframes player-bar-buffering {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
     // ── 右侧: 工具 ──
 
     &__right {
