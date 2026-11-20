@@ -18,10 +18,7 @@ import './index.scss';
 export default function PluginManagerPage() {
     const { t } = useTranslation();
     const sourceGroups = useSourceGroups();
-    const activeSource = useMemo(
-        () => sourceGroups.find((g) => g.isActive) || sourceGroups[0],
-        [sourceGroups],
-    );
+    const activeSource = useMemo(() => sourceGroups.find((g) => g.isActive), [sourceGroups]);
     const sourceCount = sourceGroups.length;
     const [checking, setChecking] = useState(false);
 

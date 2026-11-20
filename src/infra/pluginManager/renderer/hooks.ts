@@ -99,15 +99,15 @@ export function useSortedSearchablePlugins(
 }
 
 export const PLATFORM_LABEL_MAP: Record<string, string> = {
-    kw: '酷我',
-    kg: '酷狗',
+    kw: '酷我音乐',
+    kg: '酷狗音乐',
     tx: 'QQ音乐',
-    wy: '网易云',
-    mg: '咪咕',
+    wy: '网易云音乐',
+    mg: '咪咕音乐',
     qs: '汽水',
     qishui: '汽水',
     bili: 'B站',
-    local: '本地',
+    local: '本地音乐',
 };
 
 export interface ISourceGroup {
@@ -135,9 +135,8 @@ export function useSourceGroups(): ISourceGroup[] {
     const activeSourceHash = useAtomValue(activeSourceHashAtom);
 
     return useMemo(() => {
-        const customPlugins = plugins.filter(
-            (p) => p.hash !== LOCAL_PLUGIN_HASH && p.platform !== 'local',
-        );
+        // 只排除内置本地插件，音源包声明的本地平台仍需展示和检测。
+        const customPlugins = plugins.filter((p) => p.hash !== LOCAL_PLUGIN_HASH);
 
         // 按 sourceHash 分组
         const groupMap = new Map<string, IPlugin.IPluginDelegate[]>();
@@ -149,7 +148,6 @@ export function useSourceGroups(): ISourceGroup[] {
         }
 
         const groups: ISourceGroup[] = [];
-        let index = 0;
         for (const [sourceHash, delegates] of groupMap.entries()) {
             const first = delegates[0];
             const name = first.sourceName || '自定义音源';
@@ -164,8 +162,8 @@ export function useSourceGroups(): ISourceGroup[] {
                 new Set(delegates.flatMap((d) => d.supportedMethod || [])),
             );
             const srcUrl = delegates.find((d) => d.srcUrl)?.srcUrl;
-            const isActive = sourceHash === activeSourceHash || (!activeSourceHash && index === 0);
             const enabled = delegates.some((d) => meta[d.hash]?.enabled !== false);
+            const isActive = enabled && sourceHash === activeSourceHash;
             const order = Math.min(...delegates.map((d) => meta[d.hash]?.order ?? 999999));
 
             groups.push({
@@ -183,7 +181,6 @@ export function useSourceGroups(): ISourceGroup[] {
                 enabled,
                 order,
             });
-            index++;
         }
 
         // 激活的音源排在前面，其余按 order 排序

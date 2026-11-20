@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     DndContext,
     closestCenter,
@@ -12,7 +12,8 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { Blocks } from 'lucide-react';
 import { StatusPlaceholder } from '@renderer/mainWindow/components/ui/StatusPlaceholder';
 import { RequestStatus } from '@common/constant';
-import pluginManager, { type IPluginAvailabilityResult } from '@infra/pluginManager/renderer';
+import { showToast } from '@renderer/mainWindow/components/ui/Toast';
+import pluginManager from '@infra/pluginManager/renderer';
 import { useSourceGroups, usePluginAvailability } from '@infra/pluginManager/renderer/hooks';
 import PluginItem from './PluginItem';
 
@@ -21,11 +22,13 @@ const DND_MODIFIERS = [restrictToVerticalAxis];
 /**
  * PluginList — 多音源列表（对齐移动端多音源结构）
  *
- * 以「音源包（脚本）」为维度展示与排序，支持多音源自由切换。
+ * 以「音源包（脚本）」为维度展示与排序，通过开关互斥使用音源。
  */
 export default function PluginList() {
     const sourceGroups = useSourceGroups();
     const availability = usePluginAvailability();
+    const [changingSource, setChangingSource] = useState(false);
+    const changingSourceRef = useRef(false);
 
     const sortedIds = useMemo(() => sourceGroups.map((g) => g.sourceHash), [sourceGroups]);
 
@@ -55,15 +58,44 @@ export default function PluginList() {
     );
 
     const handleToggleEnabled = useCallback(
-        (sourceHash: string, enabled: boolean) => {
+        async (sourceHash: string, enabled: boolean) => {
             const targetGroup = sourceGroups.find((g) => g.sourceHash === sourceHash);
-            if (!targetGroup) return;
+            if (!targetGroup || changingSourceRef.current) return;
 
-            const updates = targetGroup.delegates.map((d) => ({
-                hash: d.hash,
-                meta: { enabled },
-            }));
-            pluginManager.batchSetPluginMeta(updates);
+            changingSourceRef.current = true;
+            setChangingSource(true);
+            const previousActiveHash = pluginManager.getActiveSourceHash();
+            const nextActiveHash = enabled
+                ? sourceHash
+                : targetGroup.isActive
+                  ? ''
+                  : previousActiveHash;
+            // 启用时按整包互斥更新，保留内置本地音乐插件的独立状态。
+            const updates = (enabled ? sourceGroups : [targetGroup]).flatMap((g) =>
+                g.delegates.map((d) => ({
+                    hash: d.hash,
+                    meta: { enabled: enabled && g.sourceHash === sourceHash },
+                })),
+            );
+
+            try {
+                await pluginManager.setActiveSourceHash(nextActiveHash);
+                await pluginManager.batchSetPluginMeta(updates, { throwOnError: true });
+                if (enabled) {
+                    showToast(`已使用音源：${targetGroup.name}，其他音源已禁用`);
+                }
+            } catch {
+                // meta 保存失败会自行回滚，同时恢复之前的当前音源。
+                try {
+                    await pluginManager.setActiveSourceHash(previousActiveHash);
+                } catch (error) {
+                    console.error('恢复当前音源失败', error);
+                }
+                showToast('音源状态保存失败，请重试', { type: 'warn' });
+            } finally {
+                changingSourceRef.current = false;
+                setChangingSource(false);
+            }
         },
         [sourceGroups],
     );
@@ -88,42 +120,15 @@ export default function PluginList() {
         >
             <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
                 <div className="p-plugin-manager__list">
-                    {sourceGroups.map((group) => {
-                        const childAvailabilities = group.delegates
-                            .map((d) => availability[d.hash])
-                            .filter(Boolean);
-
-                        let groupAvailability: IPluginAvailabilityResult | undefined;
-                        if (childAvailabilities.some((a) => a.state === 'checking')) {
-                            groupAvailability = { state: 'checking' };
-                        } else if (childAvailabilities.length > 0) {
-                            const hasAvailable = childAvailabilities.some(
-                                (a) => a.state === 'available',
-                            );
-                            const hasUnavailable = childAvailabilities.some(
-                                (a) => a.state === 'unavailable',
-                            );
-                            if (hasAvailable && !hasUnavailable) {
-                                groupAvailability = { state: 'available' };
-                            } else if (hasAvailable && hasUnavailable) {
-                                groupAvailability = { state: 'available' }; // 部分或全部可用时标为可用
-                            } else if (!hasAvailable && hasUnavailable) {
-                                groupAvailability = {
-                                    state: 'unavailable',
-                                    message: childAvailabilities.find((a) => a.message)?.message,
-                                };
-                            }
-                        }
-
-                        return (
-                            <PluginItem
-                                key={group.sourceHash}
-                                sourceGroup={group}
-                                availability={groupAvailability}
-                                onToggleEnabled={handleToggleEnabled}
-                            />
-                        );
-                    })}
+                    {sourceGroups.map((group) => (
+                        <PluginItem
+                            key={group.sourceHash}
+                            sourceGroup={group}
+                            availability={availability}
+                            changingSource={changingSource}
+                            onToggleEnabled={handleToggleEnabled}
+                        />
+                    ))}
                 </div>
             </SortableContext>
         </DndContext>

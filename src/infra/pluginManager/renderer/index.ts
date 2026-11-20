@@ -174,10 +174,11 @@ async function setPluginMeta(hash: string, meta: Partial<IPlugin.IPluginMeta>): 
 /**
  * 批量设置插件 meta（单次 IPC + 单次落盘）。
  * 先同步更新本地 atom（确保 UI 即时响应），再异步持久化到磁盘。
- * 如果 IPC 失败则回滚 atom 到之前的状态。
+ * 如果 IPC 失败则回滚 atom 到之前的状态；联动操作可要求继续向上传递错误。
  */
 async function batchSetPluginMeta(
     updates: Array<{ hash: string; meta: Partial<IPlugin.IPluginMeta> }>,
+    options?: { throwOnError?: boolean },
 ): Promise<void> {
     // 保存旧值以备回滚
     const previousMeta = store.get(pluginMetaAtom);
@@ -196,6 +197,7 @@ async function batchSetPluginMeta(
         // IPC 失败则回滚
         console.error('[PluginManager Renderer] batchSetPluginMeta failed, rolling back:', err);
         store.set(pluginMetaAtom, previousMeta);
+        if (options?.throwOnError) throw err;
     }
 }
 
