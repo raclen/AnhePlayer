@@ -87,6 +87,10 @@ declare namespace IPlugin {
         author?: string;
         /** 插件说明（支持 Markdown） */
         description?: string;
+        /** 音源显示名称（和音源检测页面一致） */
+        sourceName?: string;
+        /** 脚本源文件哈希 */
+        sourceHash?: string;
         /** 用户自定义输入 */
         userVariables?: IUserVariable[];
         /** 提示文本 */
@@ -167,5 +171,7 @@ declare namespace IPlugin {
         supportedMethod: string[];
         hash: string;
         path: string;
+        sourceHash?: string;
+        sourceName?: string;
     };
 }

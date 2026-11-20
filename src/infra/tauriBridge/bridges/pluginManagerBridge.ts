@@ -37,6 +37,7 @@ import type {
 import { tauriInvoke } from '../ipc';
 import { getLyricAdapterWeb } from './pluginManager/lyricAdapter';
 import localPluginDefine from './pluginManager/localPlugin';
+import { resolveLxSourceName } from '@infra/pluginManager/common/lxSourceNameResolver';
 
 /** localStorage 首帧缓存键 */
 const PLUGIN_CACHE_STORAGE_KEY = 'anhe-player-plugin-cache';
@@ -219,6 +220,15 @@ class TauriPluginManagerService {
         // 为没有 order 的插件分配默认值，避免更新后 hash 变化导致顺序乱掉
         this.assignDefaultOrder();
 
+        try {
+            const savedActiveHash = await this.getConfigByKey('plugin.activeSourceHash');
+            if (savedActiveHash) {
+                (globalThis as any).__anheActiveSourceHash = savedActiveHash;
+            }
+        } catch {
+            // 忽略读取历史激活哈希异常
+        }
+
         this.updateCache();
     }
 
@@ -331,6 +341,8 @@ class TauriPluginManagerService {
                 return [];
             }
 
+            const resolvedSourceName = resolveLxSourceName(code, filePath);
+
             return rawDelegates.map((raw) => {
                 const platform = String(raw.platform ?? '');
                 const hash = `${sourceHash}:${platform}`;
@@ -338,6 +350,8 @@ class TauriPluginManagerService {
                     ...(raw as any),
                     hash,
                     path: filePath,
+                    sourceHash,
+                    sourceName: resolvedSourceName,
                 } as IPlugin.IPluginDelegate;
                 return {
                     hash,
@@ -445,7 +459,7 @@ class TauriPluginManagerService {
                 code = content;
             }
 
-            return await this.installCode(code);
+            return await this.installCode(code, urlOrPath);
         } catch (err: any) {
             console.error('[PluginManager] Install failed:', err);
             return { success: false, message: err?.message ?? 'Unknown error' };
@@ -466,8 +480,11 @@ class TauriPluginManagerService {
         }
     }
 
-    /** 安装核心：校验哈希/平台冲突、写盘、解析、注册 */
-    private async installCode(code: string): Promise<{ success: boolean; message?: string }> {
+    /** 安装核心：支持多个音源共存、同名音源更新、写盘、解析、注册 */
+    private async installCode(
+        code: string,
+        originalUrlOrPath?: string,
+    ): Promise<{ success: boolean; message?: string }> {
         const sourceHash = await computeHash(code);
         if (!sourceHash) {
             return { success: false, message: 'Empty plugin code' };
@@ -490,43 +507,39 @@ class TauriPluginManagerService {
             return { success: false, message: 'Failed to parse plugin' };
         }
 
-        // 检查是否有同平台的旧版插件
-        const existingEntries = this.findPluginsByPlatforms(
-            loadedPlugins.map((loaded) => loaded.delegate.platform),
-        );
-        if (existingEntries.length > 0) {
-            if (existingEntries.some((entry) => this.isBuiltinPlugin(entry))) {
-                loadedPlugins[0].host?.terminate();
-                await fsRemove(filePath);
-                return { success: false, message: 'Plugin already installed' };
-            }
+        // 尝试通过代码和提示解析音源显示名称
+        const resolvedSourceName =
+            loadedPlugins[0]?.delegate.sourceName ||
+            resolveLxSourceName(code, originalUrlOrPath || '');
 
+        // 检查是否有同名音源（即同一个音源的更新，而非不同音源的互斥）
+        const sameNamedEntries = Array.from(this.plugins.values()).filter(
+            (p) =>
+                !this.isBuiltinPlugin(p) &&
+                p.delegate.sourceName &&
+                p.delegate.sourceName === resolvedSourceName,
+        );
+
+        if (sameNamedEntries.length > 0) {
             // 版本比较：仅在新版本更高时安装（可通过配置跳过）
             const skipVersionCheck =
                 (await this.getConfigByKey('plugin.notCheckPluginVersion')) ?? false;
             if (!skipVersionCheck) {
-                for (const existingEntry of existingEntries) {
-                    const nextEntry = loadedPlugins.find(
-                        (loaded) => loaded.delegate.platform === existingEntry.delegate.platform,
-                    );
-                    if (
-                        existingEntry.delegate.version &&
-                        nextEntry?.delegate.version &&
-                        compare(existingEntry.delegate.version, nextEntry.delegate.version, '>')
-                    ) {
-                        // 回滚：删除刚写入的文件
-                        loadedPlugins[0].host?.terminate();
-                        await fsRemove(filePath);
-                        return {
-                            success: false,
-                            message: `Existing version ${existingEntry.delegate.version} >= ${nextEntry.delegate.version}`,
-                        };
-                    }
+                const existingVersion = sameNamedEntries[0].delegate.version;
+                const nextVersion = loadedPlugins[0]?.delegate.version;
+                if (existingVersion && nextVersion && compare(existingVersion, nextVersion, '>')) {
+                    // 回滚：删除刚写入的文件
+                    loadedPlugins[0].host?.terminate();
+                    await fsRemove(filePath);
+                    return {
+                        success: false,
+                        message: `Existing version ${existingVersion} >= ${nextVersion}`,
+                    };
                 }
             }
 
-            // 删除旧插件文件
-            for (const group of this.groupPluginsBySource(existingEntries)) {
+            // 删除该同名音源的旧文件及实例
+            for (const group of this.groupPluginsBySource(sameNamedEntries)) {
                 await this.removePluginFile(group[0]);
                 for (const loaded of group) {
                     this.plugins.delete(loaded.hash);
@@ -536,6 +549,14 @@ class TauriPluginManagerService {
 
         for (const loaded of loadedPlugins) {
             this.plugins.set(loaded.hash, loaded);
+        }
+
+        // 新安装的音源默认设为当前激活音源
+        (globalThis as any).__anheActiveSourceHash = sourceHash;
+        try {
+            await this.setConfigByKey('plugin.activeSourceHash', sourceHash);
+        } catch {
+            /* 忽略配置保存异常 */
         }
 
         this.onPluginListChanged();
@@ -791,8 +812,27 @@ class TauriPluginManagerService {
         };
     }
 
-    /** 通过 platform 查找插件 */
+    /** 通过 platform 查找插件，优先当前激活音源 */
     private findPluginByPlatform(platform: string): ILoadedPlugin | undefined {
+        const activeSourceHash = (globalThis as any).__anheActiveSourceHash;
+        if (activeSourceHash) {
+            for (const loaded of this.plugins.values()) {
+                if (
+                    loaded.sourceHash === activeSourceHash &&
+                    loaded.delegate.platform === platform
+                ) {
+                    return loaded;
+                }
+            }
+        }
+        for (const loaded of this.plugins.values()) {
+            if (
+                loaded.delegate.platform === platform &&
+                this.pluginMeta[loaded.hash]?.enabled !== false
+            ) {
+                return loaded;
+            }
+        }
         for (const loaded of this.plugins.values()) {
             if (loaded.delegate.platform === platform) {
                 return loaded;
@@ -1038,6 +1078,32 @@ class TauriPluginManagerService {
             return undefined;
         }
     }
+
+    /** 写入应用配置项 */
+    private async setConfigByKey(key: string, value: any): Promise<void> {
+        try {
+            const mod = (window as any)[APP_CONFIG_KEY];
+            await mod?.setConfigByKey?.(key, value);
+        } catch {
+            /* 忽略写入异常 */
+        }
+    }
+
+    /** 设置当前激活的音源源文件哈希 */
+    public async setActiveSourceHash(sourceHash: string): Promise<void> {
+        (globalThis as any).__anheActiveSourceHash = sourceHash;
+        await this.setConfigByKey('plugin.activeSourceHash', sourceHash);
+        this.onPluginListChanged();
+    }
+
+    /** 获取当前激活的音源源文件哈希 */
+    public async getActiveSourceHash(): Promise<string> {
+        return (
+            (globalThis as any).__anheActiveSourceHash ??
+            (await this.getConfigByKey('plugin.activeSourceHash')) ??
+            ''
+        );
+    }
 }
 
 // ─── 注册 ───
@@ -1053,6 +1119,8 @@ export function registerTauriPluginManagerBridge(): void {
         updatePlugin: (hash: string) => service.updatePlugin(hash),
         updateAllPlugins: () => service.updateAllPlugins(),
         getAllPlugins: () => service.getAllPlugins(),
+        setActiveSourceHash: (sourceHash: string) => service.setActiveSourceHash(sourceHash),
+        getActiveSourceHash: () => service.getActiveSourceHash(),
         setPluginMeta: (hash: string, meta: Partial<IPlugin.IPluginMeta>) =>
             service.setPluginMeta(hash, meta),
         batchSetPluginMeta: (

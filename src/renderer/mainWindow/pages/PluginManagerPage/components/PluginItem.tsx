@@ -10,6 +10,7 @@ import {
     ListPlus,
     SlidersHorizontal,
     Trash2,
+    Check,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@renderer/mainWindow/components/ui/Button';
@@ -18,6 +19,7 @@ import { Toggle } from '@renderer/mainWindow/components/ui/Toggle';
 import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager';
 import { showToast } from '@renderer/mainWindow/components/ui/Toast';
 import pluginManager from '@infra/pluginManager/renderer';
+import { useActiveSourceHash } from '@infra/pluginManager/renderer/hooks';
 import type { IPluginAvailabilityResult } from '@infra/pluginManager/renderer';
 import { cn } from '@common/cn';
 
@@ -164,6 +166,11 @@ const PluginItemInfo = memo(function PluginItemInfo({
     onToggleEnabled,
 }: PluginItemProps) {
     const { t } = useTranslation();
+    const activeSourceHash = useActiveSourceHash();
+    const isCurrentActive = !!plugin.sourceHash && plugin.sourceHash === activeSourceHash;
+
+    const displayName = plugin.sourceName || plugin.platform;
+    const showPlatformBadge = !!plugin.sourceName && plugin.sourceName !== plugin.platform;
 
     // ── 能力标签：支持xx/xx/xx功能 ──
     const capabilities = useMemo(() => {
@@ -178,11 +185,30 @@ const PluginItemInfo = memo(function PluginItemInfo({
         showModal('PluginDescriptionModal', { plugin });
     }, [plugin]);
 
+    const handleSwitchActive = useCallback(async () => {
+        if (!plugin.sourceHash) return;
+        await pluginManager.setActiveSourceHash(plugin.sourceHash);
+        showToast(
+            t('plugin.switched_to_source', {
+                defaultValue: `已切换为当前音源：${displayName}`,
+                name: displayName,
+            }),
+        );
+    }, [plugin.sourceHash, displayName, t]);
+
     return (
         <>
             <div className="p-plugin-manager__item-info">
                 <div className="p-plugin-manager__item-title-row">
-                    <h3 className="p-plugin-manager__item-name">{plugin.platform}</h3>
+                    <h3 className="p-plugin-manager__item-name" title={displayName}>
+                        {displayName}
+                    </h3>
+                    {showPlatformBadge && <Badge variant="outline">{plugin.platform}</Badge>}
+                    {isCurrentActive && (
+                        <Badge variant="tint" colorScheme="primary">
+                            当前音源
+                        </Badge>
+                    )}
                     <AvailabilityBadge availability={availability} />
                     {plugin.version && (
                         <span className="p-plugin-manager__item-version">
@@ -217,6 +243,16 @@ const PluginItemInfo = memo(function PluginItemInfo({
             </div>
 
             <div className="p-plugin-manager__item-right">
+                {!isCurrentActive && plugin.sourceHash && (
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={<Check size={14} />}
+                        onClick={handleSwitchActive}
+                    >
+                        切换
+                    </Button>
+                )}
                 <Toggle
                     checked={enabled}
                     onChange={(checked) => onToggleEnabled(plugin.hash, checked)}
@@ -265,11 +301,12 @@ const PluginItemActions = memo(function PluginItemActions({
     }, [plugin.hash, plugin.platform, t]);
 
     const handleUninstall = useCallback(() => {
+        const displayName = plugin.sourceName || plugin.platform;
         showModal('ConfirmModal', {
             title: t('plugin.uninstall_plugin'),
             message: t('plugin.uninstall_warning'),
             description: t('plugin.confirm_text_uninstall_plugin', {
-                plugin: plugin.platform,
+                plugin: displayName,
             }),
             confirmText: t('plugin.confirm_uninstall'),
             confirmDanger: true,
@@ -278,7 +315,7 @@ const PluginItemActions = memo(function PluginItemActions({
                 if (result.success) {
                     showToast(
                         t('plugin.uninstall_successfully', {
-                            plugin: plugin.platform,
+                            plugin: displayName,
                         }),
                     );
                 } else {

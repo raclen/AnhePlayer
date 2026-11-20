@@ -11,6 +11,7 @@
 
 import CryptoJS from 'crypto-js';
 import { createQishuiSearchClient } from './qishuiSearch';
+import { resolveLxSourceName } from '../common/lxSourceNameResolver';
 
 // ─── Worker 侧：与宿主的 HTTP 桥 ───
 
@@ -2461,6 +2462,7 @@ export async function executeLxPluginCode(
             return null;
         }
 
+        const resolvedSourceName = resolveLxSourceName(code, pluginPath);
         const instances: IPlugin.IPluginInstance[] = [];
         for (const [sourceKey, source] of Object.entries(initedPayload.sources)) {
             if (source?.type && source.type !== 'music') continue;
@@ -2471,6 +2473,7 @@ export async function executeLxPluginCode(
             const supportedSearchType = Object.keys(sourceSearchers) as IMedia.SupportMediaType[];
             const instance: IPlugin.IPluginInstance = {
                 platform,
+                sourceName: resolvedSourceName,
                 version: meta.version,
                 author: meta.author,
                 description: meta.description,
@@ -2625,6 +2628,8 @@ export function extractPluginDelegate(
         supportedMethod,
         hash,
         path: instance._path,
+        sourceName: instance.sourceName,
+        sourceHash: instance.sourceHash,
     };
 
     return delegate;

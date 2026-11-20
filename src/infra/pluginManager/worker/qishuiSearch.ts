@@ -30,6 +30,8 @@ class QishuiResponseError extends Error {
 
 const API_PREFIX = '/api/luna/v1/platform';
 const USER_AGENT = 'LunaOpenSDK/1.0.10';
+// 搜索响应含完整目录信息；真实 Tauri HTTP 链路可能超过 15 秒，不能提前丢弃有效结果。
+const REQUEST_TIMEOUT = 30000;
 const COMMON_PARAMS = {
     aid: '765213',
     app_id: '765213',
@@ -136,10 +138,13 @@ export function createQishuiSearchClient(request: QishuiRequest) {
                     ...(token ? { 'access-token': token } : {}),
                 },
                 body,
-                timeout: 15000,
+                timeout: REQUEST_TIMEOUT,
                 responseType: 'json',
             });
-        } catch {
+        } catch (error) {
+            if (error instanceof Error && error.message === 'Host request timed out') {
+                throw new QishuiResponseError('汽水搜索请求超时，请重试或检查网络设置');
+            }
             throw new QishuiResponseError('汽水搜索服务连接失败，请检查网络或稍后重试');
         }
         return checkedResponse(response);

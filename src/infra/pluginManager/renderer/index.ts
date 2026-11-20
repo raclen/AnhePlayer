@@ -15,11 +15,17 @@ import type {
     IGetMediaSourceResult,
     IPluginMetaAll,
 } from '@appTypes/infra/pluginManager';
-import { QUALITY_KEYS } from '@common/constant';
+import { QUALITY_KEYS, LOCAL_PLUGIN_HASH } from '@common/constant';
 import { tauriInvoke } from '@infra/tauriBridge/ipc';
 import { CONTEXT_BRIDGE_KEY } from '../common/constant';
 import { sortByPluginOrder } from '../common/sortByOrder';
-import { store, pluginsAtom, pluginMetaAtom, pluginAvailabilityAtom } from './store';
+import {
+    store,
+    pluginsAtom,
+    pluginMetaAtom,
+    pluginAvailabilityAtom,
+    activeSourceHashAtom,
+} from './store';
 import type { IPluginAvailabilityResult } from './store';
 
 // ─── Tauri Bridge 接口类型 ───
@@ -32,6 +38,8 @@ interface IMod {
     updatePlugin(hash: string): Promise<{ success: boolean; message?: string }>;
     updateAllPlugins(): Promise<{ updated: number; failed: number }>;
     getAllPlugins(): Promise<IPlugin.IPluginDelegate[]>;
+    setActiveSourceHash?(sourceHash: string): Promise<void>;
+    getActiveSourceHash?(): Promise<string>;
     setPluginMeta(hash: string, meta: Partial<IPlugin.IPluginMeta>): Promise<void>;
     batchSetPluginMeta(
         updates: Array<{ hash: string; meta: Partial<IPlugin.IPluginMeta> }>,
@@ -82,10 +90,22 @@ async function setup(): Promise<void> {
 
     // Phase 2: 异步获取最新数据
     try {
-        const [plugins, meta] = await Promise.all([mod.getAllPlugins(), mod.getAllPluginMeta()]);
+        const [plugins, meta, activeHash] = await Promise.all([
+            mod.getAllPlugins(),
+            mod.getAllPluginMeta(),
+            mod.getActiveSourceHash ? mod.getActiveSourceHash() : Promise.resolve(''),
+        ]);
 
         store.set(pluginsAtom, plugins);
         store.set(pluginMetaAtom, meta);
+        if (activeHash) {
+            store.set(activeSourceHashAtom, activeHash);
+        } else if (plugins.length > 0) {
+            const firstLx = plugins.find((p) => p.hash !== LOCAL_PLUGIN_HASH);
+            if (firstLx?.sourceHash) {
+                store.set(activeSourceHashAtom, firstLx.sourceHash);
+            }
+        }
     } catch (err) {
         console.error('[PluginManager Renderer] Failed to load initial data:', err);
     }
@@ -194,9 +214,31 @@ function getPluginByHash(hash: string): IPlugin.IPluginDelegate | undefined {
     return store.get(pluginsAtom).find((p) => p.hash === hash);
 }
 
-/** 通过 platform 获取单个插件 */
+/** 通过 platform 获取单个插件（优先当前激活音源） */
 function getPluginByPlatform(platform: string): IPlugin.IPluginDelegate | undefined {
-    return store.get(pluginsAtom).find((p) => p.platform === platform);
+    const activeHash = store.get(activeSourceHashAtom);
+    const plugins = store.get(pluginsAtom);
+    if (activeHash) {
+        const match = plugins.find((p) => p.sourceHash === activeHash && p.platform === platform);
+        if (match) return match;
+    }
+    const meta = store.get(pluginMetaAtom);
+    const enabled = plugins.find((p) => p.platform === platform && meta[p.hash]?.enabled !== false);
+    if (enabled) return enabled;
+    return plugins.find((p) => p.platform === platform);
+}
+
+/** 设置当前激活的音源源文件哈希 */
+async function setActiveSourceHash(sourceHash: string): Promise<void> {
+    store.set(activeSourceHashAtom, sourceHash);
+    if (mod.setActiveSourceHash) {
+        await mod.setActiveSourceHash(sourceHash);
+    }
+}
+
+/** 获取当前激活的音源源文件哈希 */
+function getActiveSourceHash(): string {
+    return store.get(activeSourceHashAtom);
 }
 
 /**
@@ -567,6 +609,8 @@ const pluginManager = {
     uninstallPlugin,
     updatePlugin,
     updateAllPlugins,
+    setActiveSourceHash,
+    getActiveSourceHash,
     setPluginMeta,
     batchSetPluginMeta,
     getPlugins,

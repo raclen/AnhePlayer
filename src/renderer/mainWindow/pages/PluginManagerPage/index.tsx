@@ -2,9 +2,10 @@ import { Activity, Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@renderer/mainWindow/components/ui/Button';
+import { Badge } from '@renderer/mainWindow/components/ui/Badge';
 import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager';
 import { showToast } from '@renderer/mainWindow/components/ui/Toast';
-import { usePlugins } from '@infra/pluginManager/renderer/hooks';
+import { usePlugins, useActiveSourceHash } from '@infra/pluginManager/renderer/hooks';
 import pluginManager from '@infra/pluginManager/renderer';
 import { LOCAL_PLUGIN_HASH } from '@common/constant';
 import PluginList from './components/PluginList';
@@ -19,6 +20,12 @@ import './index.scss';
 export default function PluginManagerPage() {
     const { t } = useTranslation();
     const plugins = usePlugins();
+    const activeSourceHash = useActiveSourceHash();
+    const activePlugin = useMemo(
+        () =>
+            plugins.find((p) => p.sourceHash === activeSourceHash && p.hash !== LOCAL_PLUGIN_HASH),
+        [plugins, activeSourceHash],
+    );
     const pluginCount = useMemo(
         () => plugins.filter((p) => p.hash !== LOCAL_PLUGIN_HASH).length,
         [plugins],
@@ -51,6 +58,11 @@ export default function PluginManagerPage() {
             <div className="p-plugin-manager__header">
                 <div className="p-plugin-manager__title-group">
                     <h2 className="p-plugin-manager__title">{t('plugin.plugin_management')}</h2>
+                    {activePlugin && (
+                        <Badge variant="tint" colorScheme="primary">
+                            {`当前音源：${activePlugin.sourceName || activePlugin.platform}`}
+                        </Badge>
+                    )}
                     {pluginCount > 0 && (
                         <span className="p-plugin-manager__count">
                             {t('plugin.plugin_count', { count: pluginCount })}

@@ -44,3 +44,6 @@ export interface IPluginAvailabilityResult {
 
 /** 按插件 hash 索引的可用性检测结果 */
 export const pluginAvailabilityAtom = atom<Record<string, IPluginAvailabilityResult>>({});
+
+/** 当前激活的音源源文件哈希 */
+export const activeSourceHashAtom = atom<string>('');
