@@ -7,6 +7,7 @@ import { OFFICIAL_SITE_URL } from '@common/constant';
 import systemUtil from '@infra/systemUtil/renderer';
 import { showModal } from '@renderer/mainWindow/components/ui/Modal/modalManager';
 import { Github, type LucideIcon } from 'lucide-react';
+import { DiagnosticsCard } from './DiagnosticsCard';
 
 const GITHUB_REPO = 'https://github.com/raclen/AnhePlayer';
 const GITHUB_AUTHOR = 'https://github.com/raclen';
@@ -88,6 +89,8 @@ export function AboutSection() {
                     </div>
                 </div>
             </SettingsCard>
+
+            <DiagnosticsCard />
 
             {/* 联系作者 */}
             <SettingsCard

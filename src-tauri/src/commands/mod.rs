@@ -1,6 +1,7 @@
 pub mod app_config;
 pub mod audio_tag;
 pub mod dialog;
+pub mod diagnostics;
 pub mod download;
 pub mod forwarder;
 pub mod fs_util;

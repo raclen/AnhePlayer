@@ -13,6 +13,11 @@ export interface ILogEntry {
     messages: any[];
 }
 
+export interface IDiagnosticLogs {
+    path: string;
+    content: string;
+}
+
 export interface ILogger {
     debug(...args: any[]): void;
     info(...args: any[]): void;

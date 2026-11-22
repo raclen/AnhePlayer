@@ -88,7 +88,12 @@ class RequestForwarder {
      * audioElement.src = src;
      * ```
      */
-    buildProxyUrl(url: string, headers?: Record<string, string>, publicOnly = false): string {
+    buildProxyUrl(
+        url: string,
+        headers?: Record<string, string>,
+        publicOnly = false,
+        diagnosticId?: string,
+    ): string {
         if (!this.isReady() || !this.isProxyRequired(url)) {
             return url;
         }
@@ -101,6 +106,9 @@ class RequestForwarder {
         }
         if (publicOnly) {
             params.set('publicOnly', '1');
+        }
+        if (diagnosticId) {
+            params.set('diagnosticId', diagnosticId);
         }
 
         return `http://127.0.0.1:${this.port}/?${params.toString()}`;

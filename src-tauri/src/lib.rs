@@ -3,6 +3,7 @@ mod commands;
 use commands::{
     app_config::{self, app_config_reset, app_config_set, app_config_sync},
     audio_tag::*,
+    diagnostics::{self, *},
     dialog::*,
     download::*,
     forwarder::*,
@@ -128,6 +129,8 @@ pub fn run() {
             show_item_in_folder,
             ignore_mouse_event,
             log_entry,
+            get_diagnostic_logs,
+            clear_diagnostic_logs,
             get_cache_size,
             clear_cache,
             // 应用内更新（仅主窗口可调用）
@@ -176,6 +179,16 @@ pub fn run() {
             netease_logout,
         ])
         .setup(|app| {
+            diagnostics::record(
+                "info",
+                "app-start",
+                serde_json::json!({
+                    "version": app.package_info().version.to_string(),
+                    "os": std::env::consts::OS,
+                    "arch": std::env::consts::ARCH,
+                    "networkProxyEnabled": commands::network::read_settings().is_active()
+                }),
+            );
             commands::forwarder::init_forwarder(app.handle().clone());
             lyric_window::init_lyric_window(app.handle());
 

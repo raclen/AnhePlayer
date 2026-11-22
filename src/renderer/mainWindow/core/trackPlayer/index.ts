@@ -6,7 +6,7 @@
  */
 import type { IMusicItemSlim } from '@appTypes/infra/musicSheet';
 import type { IAppState } from '@appTypes/infra/appSync';
-import { PlayerState, RepeatMode, QUALITY_KEYS } from '@common/constant';
+import { PlayerState, RepeatMode, QUALITY_KEYS, LogLevel } from '@common/constant';
 import { isSameMedia } from '@common/mediaKey';
 import musicItemToSlim from '@common/musicItemToSlim';
 import delay from '@common/delay';
@@ -33,6 +33,12 @@ import { type IAudioController, createAudioController } from './audioController'
 import PlayQueue from './playQueue';
 import LyricManager from './lyricManager';
 import type { IPlayOptions, IResolvedMediaSource } from './types';
+import {
+    logPlayback,
+    summarizeMusic,
+    summarizePlaybackError,
+    summarizeSource,
+} from './diagnostics';
 import {
     store,
     currentMusicAtom,
@@ -164,6 +170,22 @@ class TrackPlayer {
             ? (savedQuality as IMusic.IQualityKey)
             : 'standard';
 
+        logPlayback('player-setup', {
+            version: globalContext.appVersion,
+            userAgent: navigator.userAgent,
+            quality: validQuality,
+            speed,
+            repeatMode,
+            playErrorPolicy: appConfig.getConfigByKey('playMusic.playError') ?? 'retry_with_source',
+        });
+        window.addEventListener('online', () => logPlayback('network-online'));
+        window.addEventListener('offline', () => logPlayback('network-offline', {}, LogLevel.Warn));
+        document.addEventListener('visibilitychange', () =>
+            logPlayback('visibility-change', {
+                visibility: document.visibilityState,
+            }),
+        );
+
         store.set(volumeAtom, volume);
         store.set(speedAtom, speed);
         store.set(repeatModeAtom, repeatMode);
@@ -258,6 +280,7 @@ class TrackPlayer {
         index = ((index % queue.length) + queue.length) % queue.length;
 
         const targetSlim = queue[index];
+        logPlayback('track-play-request', { actionId, music: summarizeMusic(targetSlim), index });
 
         // 相同歌曲处理
         if (this.playQueue.getCurrentIndex() === index && this.isCurrentMusic(targetSlim)) {
@@ -292,7 +315,17 @@ class TrackPlayer {
             const result = localSource ?? (await this.resolveMediaSource(musicItem, quality));
 
             if (!result?.url) throw new Error('No media source');
-            if (this.playbackActionId !== actionId || !this.isCurrentMusic(targetSlim)) return;
+            if (this.playbackActionId !== actionId || !this.isCurrentMusic(targetSlim)) {
+                logPlayback('track-result-discarded', { actionId });
+                return;
+            }
+            logPlayback('track-source-ready', {
+                actionId,
+                music: summarizeMusic(musicItem),
+                quality: result.quality,
+                route: localSource ? 'downloaded' : 'resolved',
+                source: summarizeSource(result.url),
+            });
 
             // 直播固定 1× 播放，但不覆盖用户保存的歌曲倍速。
             this.audioController.setSpeed(isLive ? 1 : store.get(speedAtom));
@@ -604,9 +637,18 @@ class TrackPlayer {
             }
         });
 
-        this.audioController.on('error', (_reason, _detail) => {
-            this.handlePlayError(this.playQueue.getCurrentMusic(), _detail).catch((err) => {
-                console.error('[TrackPlayer] handle play error failed:', err);
+        this.audioController.on('error', (reason, detail) => {
+            logPlayback(
+                'audio-error-received',
+                { reason, error: summarizePlaybackError(detail) },
+                LogLevel.Error,
+            );
+            this.handlePlayError(this.playQueue.getCurrentMusic(), detail).catch((err) => {
+                logPlayback(
+                    'error-handler-failed',
+                    { error: summarizePlaybackError(err) },
+                    LogLevel.Error,
+                );
             });
         });
 
@@ -677,6 +719,19 @@ class TrackPlayer {
         syncKV.set('player.currentQuality', 'standard');
 
         const behavior = appConfig.getConfigByKey('playMusic.playError') ?? 'retry_with_source';
+        logPlayback(
+            'play-error-policy',
+            {
+                actionId,
+                music: summarizeMusic(musicItem),
+                error: summarizePlaybackError(_error),
+                behavior,
+                consecutiveErrors: this.consecutiveErrors,
+                resumeAt,
+                playbackSource: store.get(playbackSourceAtom),
+            },
+            LogLevel.Warn,
+        );
 
         if (
             behavior === 'retry_with_source' &&
@@ -694,17 +749,24 @@ class TrackPlayer {
             this.consecutiveErrors < this.MAX_CONSECUTIVE_ERRORS
         ) {
             // 主路径：跳到下一首
+            logPlayback('error-skip-next', { actionId, consecutiveErrors: this.consecutiveErrors });
             await delay(500);
             if (this.playbackActionId === actionId && this.isCurrentMusic(musicItem)) {
                 await this.skipToNext();
             }
         } else if (this.consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
             // 安全兜底：连续多次失败，停止播放避免无限循环
+            logPlayback(
+                'error-stop',
+                { actionId, cause: 'error-limit', consecutiveErrors: this.consecutiveErrors },
+                LogLevel.Warn,
+            );
             store.set(playerStateAtom, PlayerState.Paused);
             this.consecutiveErrors = 0;
             this.resetSourceRetryState();
         } else {
             // 单曲队列 / 非 skip 配置，暂停
+            logPlayback('error-stop', { actionId, cause: 'no-recovery', behavior }, LogLevel.Warn);
             store.set(playerStateAtom, PlayerState.Paused);
         }
     }
@@ -731,6 +793,16 @@ class TrackPlayer {
             .getSortedSupportedPlugin('getMediaSource')
             .filter((plugin) => !this.sourceRetryTriedHashes.has(plugin.hash));
 
+        logPlayback('retry-candidates', {
+            actionId,
+            currentHash,
+            triedHashes: [...this.sourceRetryTriedHashes],
+            candidates: candidates.map((plugin) => ({
+                hash: plugin.hash,
+                platform: plugin.platform,
+            })),
+            resumeAt,
+        });
         if (candidates.length === 0) return false;
 
         store.set(playerStateAtom, PlayerState.Buffering);
@@ -738,6 +810,8 @@ class TrackPlayer {
         for (const plugin of candidates) {
             if (!isActive()) return false;
             this.sourceRetryTriedHashes.add(plugin.hash);
+            const retryStartedAt = performance.now();
+            logPlayback('retry-start', { actionId, hash: plugin.hash, platform: plugin.platform });
 
             const candidateMusic = await this.resolveAlternativeMusicItem(sourceMusic, plugin);
             if (!isActive()) return false;
@@ -753,8 +827,22 @@ class TrackPlayer {
                     qualityFallbackOrder: this.getQualityFallbackOrder(),
                 });
 
-                if (!isActive()) return false;
-                if (!result?.url) continue;
+                if (!isActive()) {
+                    logPlayback('retry-cancelled', { actionId, hash: plugin.hash });
+                    return false;
+                }
+                if (!result?.url) {
+                    logPlayback('retry-empty', { actionId, hash: plugin.hash }, LogLevel.Warn);
+                    continue;
+                }
+                // 地址解析成功不等于续播成功；后续 media-playing/heartbeat 才能证明恢复。
+                logPlayback('retry-source-ready', {
+                    actionId,
+                    hash: plugin.hash,
+                    music: summarizeMusic(candidateMusic),
+                    elapsedMs: Math.round(performance.now() - retryStartedAt),
+                    resumeAt,
+                });
 
                 const resolvedQuality = result.quality ?? quality;
                 store.set(qualityAtom, resolvedQuality);
@@ -765,11 +853,22 @@ class TrackPlayer {
                 this.audioController.play();
                 this.consecutiveErrors = 0;
                 return true;
-            } catch {
+            } catch (error) {
+                logPlayback(
+                    'retry-failed',
+                    {
+                        actionId,
+                        hash: plugin.hash,
+                        error: summarizePlaybackError(error),
+                        elapsedMs: Math.round(performance.now() - retryStartedAt),
+                    },
+                    LogLevel.Warn,
+                );
                 // 单个音源失败时继续尝试下一个已启用音源。
             }
         }
 
+        logPlayback('retry-exhausted', { actionId }, LogLevel.Warn);
         return false;
     }
 
@@ -811,6 +910,11 @@ class TrackPlayer {
             });
             const candidates = (result?.data ?? []) as IMusic.IMusicItem[];
             const best = this.pickBestAlternativeMusicItem(sourceMusic, candidates);
+            logPlayback('retry-search-result', {
+                hash: plugin.hash,
+                candidateCount: candidates.length,
+                selected: summarizeMusic(best),
+            });
             if (!best) return null;
 
             return {
@@ -818,7 +922,12 @@ class TrackPlayer {
                 id: String(best.id),
                 platform: plugin.platform,
             };
-        } catch {
+        } catch (error) {
+            logPlayback(
+                'retry-search-failed',
+                { hash: plugin.hash, error: summarizePlaybackError(error) },
+                LogLevel.Warn,
+            );
             return null;
         }
     }
@@ -1022,7 +1131,12 @@ class TrackPlayer {
                     syncKV.set('player.currentQuality', result.quality);
                 }
             }
-        } catch {
+        } catch (error) {
+            logPlayback(
+                'restore-source-failed',
+                { music: summarizeMusic(savedMusic), error: summarizePlaybackError(error) },
+                LogLevel.Warn,
+            );
             // 恢复失败不阻塞启动；用户仍可在 UI 中手动重试播放。
         }
     }
@@ -1077,6 +1191,8 @@ class TrackPlayer {
             };
         }
 
+        const startedAt = performance.now();
+        logPlayback('resolve-start', { music: summarizeMusic(musicItem), quality });
         if (musicItem.platform === 'wy') {
             try {
                 const neteaseSource = await neteaseAccount.getMusicUrl(
@@ -1084,24 +1200,58 @@ class TrackPlayer {
                     quality,
                 );
                 if (neteaseSource?.url) {
+                    logPlayback('resolve-ready', {
+                        provider: 'netease-account',
+                        elapsedMs: Math.round(performance.now() - startedAt),
+                    });
                     return {
                         url: neteaseSource.url,
                         quality: neteaseSource.quality,
                         headers: neteaseSource.headers,
                     };
                 }
-            } catch {
+                logPlayback('resolve-account-empty');
+            } catch (error) {
+                logPlayback(
+                    'resolve-account-failed',
+                    { error: summarizePlaybackError(error) },
+                    LogLevel.Warn,
+                );
                 // 官方音源失败，降级回退到插件
             }
         }
 
-        return pluginManager.adapters.getMediaSource({
-            hash: pluginManager.getPluginByPlatform(musicItem.platform)?.hash ?? '',
-            musicItem,
-            quality,
-            qualityOrder: QUALITY_KEYS,
-            qualityFallbackOrder: this.getQualityFallbackOrder(),
-        });
+        const hash = pluginManager.getPluginByPlatform(musicItem.platform)?.hash ?? '';
+        try {
+            const result = await pluginManager.adapters.getMediaSource({
+                hash,
+                musicItem,
+                quality,
+                qualityOrder: QUALITY_KEYS,
+                qualityFallbackOrder: this.getQualityFallbackOrder(),
+            });
+            logPlayback('resolve-result', {
+                hash,
+                music: summarizeMusic(musicItem),
+                requestedQuality: quality,
+                resolvedQuality: result?.quality,
+                hasSource: !!result?.url,
+                elapsedMs: Math.round(performance.now() - startedAt),
+            });
+            return result;
+        } catch (error) {
+            logPlayback(
+                'resolve-failed',
+                {
+                    hash,
+                    music: summarizeMusic(musicItem),
+                    error: summarizePlaybackError(error),
+                    elapsedMs: Math.round(performance.now() - startedAt),
+                },
+                LogLevel.Warn,
+            );
+            throw error;
+        }
     }
 
     /** 获取音质回退策略，'skip' 降级为 'lower' */

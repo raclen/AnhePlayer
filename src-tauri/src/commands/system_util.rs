@@ -139,12 +139,6 @@ pub fn ignore_mouse_event(window: WebviewWindow, ignore: bool) -> Result<(), Str
         .map_err(|e| e.to_string())
 }
 
-/// 前端日志落点：输出到 stderr（env_logger 接管）
-#[tauri::command]
-pub fn log_entry(entry: serde_json::Value) {
-    log::info!("[frontend] {}", entry);
-}
-
 /// WebView2 用户数据目录大小（字节）。目录不存在或统计失败返回 0。
 #[tauri::command]
 pub fn get_cache_size() -> u64 {

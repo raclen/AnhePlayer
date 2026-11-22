@@ -210,11 +210,35 @@ function registerAppSyncAuxBridge(): void {
 }
 
 export function registerCommonBridges(): void {
+    // 日志串行提交，读取/清空前等待落盘；错误只提示一次，不递归调用 logger。
+    let logQueue: Promise<unknown> = Promise.resolve();
+    let logWriteFailed = false;
+    const requireLogBridge = () => {
+        if (!(window as any).__TAURI_INTERNALS__) {
+            throw new Error('诊断日志仅在桌面应用中可用');
+        }
+    };
     // 1. Logger
     (window as any)[LOGGER_KEY] = {
         log: (entry: any) => {
-            console.log(`[TauriLog] [${entry?.level || 'info'}]`, entry);
-            tauriInvoke('log_entry', { entry }).catch(() => {});
+            if (!(window as any).__TAURI_INTERNALS__) return;
+            logQueue = logQueue
+                .then(() => tauriInvoke('log_entry', { entry }))
+                .catch(() => {
+                    if (!logWriteFailed) console.warn('[TauriLog] 诊断日志写入失败');
+                    logWriteFailed = true;
+                });
+        },
+        readLogs: async () => {
+            requireLogBridge();
+            await logQueue;
+            return tauriInvoke('get_diagnostic_logs');
+        },
+        clearLogs: () => {
+            requireLogBridge();
+            const task = logQueue.then(() => tauriInvoke('clear_diagnostic_logs'));
+            logQueue = task.catch(() => {});
+            return task;
         },
     };
 

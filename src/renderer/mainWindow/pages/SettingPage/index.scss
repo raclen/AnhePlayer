@@ -157,6 +157,30 @@
         color: var(--color-text-secondary);
     }
 
+    &__log-actions {
+        flex-wrap: wrap;
+    }
+
+    &__log-path {
+        font-size: var(--text-caption-size);
+        color: var(--color-text-secondary);
+        overflow-wrap: anywhere;
+    }
+
+    &__log-preview {
+        max-height: 320px;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        padding: var(--space-4);
+        border: 1px solid var(--color-border-default);
+        border-radius: var(--radius-card);
+        background: var(--color-bg-base);
+        color: var(--color-text-secondary);
+        font-size: var(--text-caption-size);
+        line-height: 1.6;
+    }
+
     // ── 缓存/信息──
 
     &__cache-row {

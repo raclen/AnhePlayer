@@ -5,13 +5,15 @@
  * - 提供统一的日志 API（debug/info/warn/error）
  * - 控制台输出 + 序列化后通过 Tauri bridge 发送到 Rust 落盘
  */
-import type { ILogger, ILogEntry } from '@appTypes/infra/logger';
+import type { ILogger, ILogEntry, IDiagnosticLogs } from '@appTypes/infra/logger';
 import { LogLevel } from '@common/constant';
 import { safeStringify } from '@common/safeSerialize';
 import { CONTEXT_BRIDGE_KEY } from './common/constant';
 
 interface IMod {
     log(entry: ILogEntry): void;
+    readLogs(): Promise<IDiagnosticLogs>;
+    clearLogs(): Promise<void>;
 }
 
 const mod = window[CONTEXT_BRIDGE_KEY as any] as unknown as IMod;
@@ -43,6 +45,14 @@ class Logger implements ILogger {
 
     public log(...args: any[]): void {
         this.info(...args);
+    }
+
+    public readLogs(): Promise<IDiagnosticLogs> {
+        return mod.readLogs();
+    }
+
+    public clearLogs(): Promise<void> {
+        return mod.clearLogs();
     }
 
     private send(level: LogLevel, messages: any[]) {
